@@ -1,0 +1,728 @@
+package main
+
+import (
+	"fmt"
+	"syscall"
+
+	"github.com/lxn/win"
+
+	"github.com/beewit/wechat-client/enum"
+	"github.com/pkg/errors"
+	"time"
+	"unsafe"
+)
+
+var (
+	// Library
+	libuser32 = win.MustLoadLibrary("user32.dll")
+
+	// Functions
+	mouse = win.MustGetProcAddress(libuser32, "mouse_event")
+	keybd = win.MustGetProcAddress(libuser32, "keybd_event")
+
+	CloseClipboard   = win.MustGetProcAddress(libuser32, "CloseClipboard")
+	EmptyClipboard   = win.MustGetProcAddress(libuser32, "EmptyClipboard")
+	OpenClipboard    = win.MustGetProcAddress(libuser32, "OpenClipboard")
+	SetClipboardData = win.MustGetProcAddress(libuser32, "SetClipboardData")
+
+	GetSystemMetrics = win.MustGetProcAddress(libuser32, "GetSystemMetrics")
+	//
+	//CloseClipboard, _   = syscall.GetProcAddress(syscall.Handle(libuser32), "CloseClipboard")
+	//EmptyClipboard, _   = syscall.GetProcAddress(syscall.Handle(libuser32), "EmptyClipboard")
+	//OpenClipboard, _    = syscall.GetProcAddress(syscall.Handle(libuser32), "OpenClipboard")
+	//SetClipboardData, _ = syscall.GetProcAddress(syscall.Handle(libuser32), "SetClipboardData")
+)
+
+//鼠标操作
+func mouseClick() {
+	mouse_event(win.MOUSEEVENTF_LEFTDOWN)
+	mouse_event(win.MOUSEEVENTF_LEFTUP)
+}
+
+//键盘Control+V
+func keydbCV() {
+	keybd_even(win.VK_CONTROL, 0)
+	keybd_even(enum.VK_V, 0)
+	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
+	keybd_even(enum.VK_V, win.KEYEVENTF_KEYUP)
+}
+
+func keydbEnter() {
+	keybd_even(win.VK_RETURN, 0)
+	keybd_even(win.VK_RETURN, win.KEYEVENTF_KEYUP)
+}
+
+func getScreen() (int32, int32) {
+	x, r2, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CXSCREEN, 0, 0)
+	println(x, r2, err.Error())
+	y, r2, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CYSCREEN, 0, 0)
+	println(y, r2, err.Error())
+	return int32(x), int32(y)
+}
+
+func findWindow(winClass, winTitle string) win.HWND {
+	return win.FindWindow(StrUint16(winClass), StrUint16(winTitle))
+}
+
+func main() {
+	//屏幕分辨率
+	x, y := getScreen()
+	fmt.Printf("分辨率：x：%v,y:%v", x, y)
+	//找到窗体句柄
+	h := findWindow("WeChatMainWndForPC", "微信测试版")
+	if h == 0 {
+		println("查找窗体失败")
+	}
+	//激活窗体
+	win.SetForegroundWindow(h)
+	//最大化
+	win.PostMessage(h, win.WM_SYSCOMMAND, win.SC_MAXIMIZE, 0)
+	//鼠标定位
+	win.SetCursorPos(500, y-80)
+	time.Sleep(time.Second)
+	//var point win.POINT
+	//win.GetCursorPos(&point)
+	//println(fmt.Sprintf("%v", point))
+	//win.SendMessage(0, win.MOUSEEVENTF_LEFTDOWN, 0, 0)
+
+	mouseClick()
+	//keydbCV()
+	keydbEnter()
+	//鼠标定位
+	win.SetCursorPos(x-110, y-220)
+	time.Sleep(time.Second)
+	mouseClick()
+
+	//_, _, err := syscall.Syscall(keybd, 3, uintptr(win.VK_CONTROL), 0, 0)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(86), 0, 0)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(win.VK_CONTROL), 0, win.KEYEVENTF_KEYUP)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(86), 0, win.KEYEVENTF_KEYUP)
+	//println(err.Error())
+
+	//NewBitmapFromFile("sam.jpg")
+
+	//_, _, err := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("1----------")
+	//
+	//r, r2, err := syscall.Syscall(SetClipboardData, 2, win.CF_TEXT, StrPtr("wang te"), 0)
+	//println(r, r2, err.Error())
+	//println("3----------")
+	//_, _, err = syscall.Syscall(EmptyClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("2----------")
+	//_, _, err = syscall.Syscall(SetClipboardData, 3, win.CF_BITMAP, imgb.Fd(), 0)
+	//println(err.Error())
+	//r, r2, err := syscall.Syscall(SetClipboardData, 2, win.CF_TEXT, StrPtr("wang te"), 0)
+	//println(r, r2, err.Error())
+	//println("3----------")
+	//_, _, err = syscall.Syscall(CloseClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("4----------")
+	//win.EmptyClipboard()
+	//win.SetClipboardData(win.CF_TEXT, win.HANDLE(StrPtr("wang te")))
+	//win.SetClipboardData(win.CF_BITMAP, win.HANDLE(imgb.Fd()))
+
+}
+
+// SetText sets the current text data of the clipboard.
+func SetText(s string) error {
+	_, _, err2 := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	println(err2.Error())
+	println("1----------")
+
+	utf16, err := syscall.UTF16FromString(s)
+	if err != nil {
+		return err
+	}
+
+	hMem := win.GlobalAlloc(win.GMEM_MOVEABLE, uintptr(len(utf16)*2))
+	if hMem == 0 {
+		return errors.New("GlobalAlloc")
+	}
+
+	p := win.GlobalLock(hMem)
+	if p == nil {
+		return errors.New("GlobalLock()")
+	}
+
+	win.MoveMemory(p, unsafe.Pointer(&utf16[0]), uintptr(len(utf16)*2))
+
+	win.GlobalUnlock(hMem)
+
+	if 0 == win.SetClipboardData(win.CF_UNICODETEXT, win.HANDLE(hMem)) {
+		// We need to free hMem.
+		defer win.GlobalFree(hMem)
+
+		return errors.New("SetClipboardData")
+	}
+	return nil
+}
+
+// Image
+func NewBitmapFromFile(filePath string) (hPackedDIB win.HGLOBAL, err error) {
+	var si win.GdiplusStartupInput
+	si.GdiplusVersion = 1
+	if status := win.GdiplusStartup(&si, nil); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdiplusStartup failed with status '%s'", status))
+	}
+	defer win.GdiplusShutdown()
+
+	var gpBmp *win.GpBitmap
+	if status := win.GdipCreateBitmapFromFile(syscall.StringToUTF16Ptr(filePath), &gpBmp); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdipCreateBitmapFromFile failed with status '%s' for file '%s'", status, filePath))
+	}
+	defer win.GdipDisposeImage((*win.GpImage)(gpBmp))
+
+	var hBmp win.HBITMAP
+	if status := win.GdipCreateHBITMAPFromBitmap(gpBmp, &hBmp, 0); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdipCreateHBITMAPFromBitmap failed with status '%s' for file '%s'", status, filePath))
+	}
+
+	return newBitmapFromHBITMAP(hBmp)
+}
+
+func newBitmapFromHBITMAP(hBmp win.HBITMAP) (hPackedDIB win.HGLOBAL, err error) {
+
+	_, _, err2 := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	println(err2.Error())
+	println("1----------")
+
+	var dib win.DIBSECTION
+	if win.GetObject(win.HGDIOBJ(hBmp), unsafe.Sizeof(dib), unsafe.Pointer(&dib)) == 0 {
+		return 0, errors.New("GetObject failed")
+	}
+
+	bmih := &dib.DsBmih
+
+	bmihSize := uintptr(unsafe.Sizeof(*bmih))
+	pixelsSize := uintptr(int32(bmih.BiBitCount)*bmih.BiWidth*bmih.BiHeight) / 8
+
+	totalSize := uintptr(bmihSize + pixelsSize)
+
+	hPackedDIB = win.GlobalAlloc(win.GHND, totalSize)
+	dest := win.GlobalLock(hPackedDIB)
+	defer win.GlobalUnlock(hPackedDIB)
+
+	src := unsafe.Pointer(&dib.DsBmih)
+
+	win.MoveMemory(dest, src, bmihSize)
+
+	dest = unsafe.Pointer(uintptr(dest) + bmihSize)
+	src = dib.DsBm.BmBits
+
+	win.MoveMemory(dest, src, pixelsSize)
+	println(hPackedDIB)
+	r := win.SetClipboardData(win.CF_TIFF, win.HANDLE(hPackedDIB))
+	if 0 == r {
+		// We need to free hMem.
+		defer win.GlobalFree(hPackedDIB)
+
+		return 0, errors.New("SetClipboardData")
+	}
+	return hPackedDIB, nil
+}
+func mouse_event(me int) (uintptr, uintptr, error) {
+	r, r2, err := syscall.Syscall(mouse, 3, uintptr(me), 0, 0)
+	println(err.Error())
+	return r, r2, err
+}
+
+func keybd_even(bVk, bScan int) (uintptr, uintptr, error) {
+	r, r2, err := syscall.Syscall(keybd, 3, uintptr(bVk), 0, uintptr(bScan))
+	println(err.Error())
+	return r, r2, err
+}
+
+func IntPtr(n int) uintptr {
+	return uintptr(n)
+}
+
+func StrPtr(s string) uintptr {
+	return uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(s)))
+}
+
+func StrUint16(s string) *uint16 {
+	return syscall.StringToUTF16Ptr(s)
+}
+
+func abort(funcname string, err error) {
+	panic(fmt.Sprintf("%s failed: %v", funcname, err))
+}
+
+var (
+	kernel32, _        = syscall.LoadLibrary("kernel32.dll")
+	getModuleHandle, _ = syscall.GetProcAddress(kernel32, "GetModuleHandleW")
+	user32, _          = syscall.LoadLibrary("user32.dll")
+	messageBox, _      = syscall.GetProcAddress(user32, "MessageBoxW")
+)
+
+const (
+	MB_OK                = 0x00000000
+	MB_OKCANCEL          = 0x00000001
+	MB_ABORTRETRYIGNORE  = 0x00000002
+	MB_YESNOCANCEL       = 0x00000003
+	MB_YESNO             = 0x00000004
+	MB_RETRYCANCEL       = 0x00000005
+	MB_CANCELTRYCONTINUE = 0x00000006
+	MB_ICONHAND          = 0x00000010
+	MB_ICONQUESTION      = 0x00000020
+	MB_ICONEXCLAMATION   = 0x00000030
+	MB_ICONASTERISK      = 0x00000040
+	MB_USERICON          = 0x00000080
+	MB_ICONWARNING       = MB_ICONEXCLAMATION
+	MB_ICONERROR         = MB_ICONHAND
+	MB_ICONINFORMATION   = MB_ICONASTERISK
+	MB_ICONSTOP          = MB_ICONHAND
+	MB_DEFBUTTON1        = 0x00000000
+	MB_DEFBUTTON2        = 0x00000100
+	MB_DEFBUTTON3        = 0x00000200
+	MB_DEFBUTTON4        = 0x00000300
+)
+
+func MessageBox(caption, text string, style uintptr) (result int) {
+	var nargs uintptr = 4
+	ret, _, callErr := syscall.Syscall9(uintptr(messageBox), nargs, 0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(text))), uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(caption))), style, 0, 0, 0, 0, 0)
+	if callErr != 0 {
+		abort("Call MessageBox", callErr)
+	}
+	result = int(ret)
+	return
+}
+func GetModuleHandle() (handle uintptr) {
+	var nargs uintptr = 0
+	if ret, _, callErr := syscall.Syscall(uintptr(getModuleHandle), nargs, 0, 0, 0); callErr != 0 {
+		abort("Call GetModuleHandle", callErr)
+	} else {
+		handle = ret
+	}
+	return
+}
+
+//func main() {
+//	defer syscall.FreeLibrary(kernel32)
+//	defer syscall.FreeLibrary(user32)
+//	fmt.Printf("Return: %d\n", MessageBox("Done Title", "This test is Done.", MB_YESNOCANCEL))
+//}
+func init() {
+	fmt.Print("Starting Up\n")
+}
+
+
+
+
+
+
+
+
+
+
+package main
+
+import (
+	"fmt"
+	"syscall"
+
+	"github.com/lxn/win"
+
+	"github.com/beewit/wechat-client/enum"
+	"github.com/pkg/errors"
+	"time"
+	"unsafe"
+)
+
+var (
+	// Library
+	libuser32 = win.MustLoadLibrary("user32.dll")
+
+	// Functions
+	mouse = win.MustGetProcAddress(libuser32, "mouse_event")
+	keybd = win.MustGetProcAddress(libuser32, "keybd_event")
+
+	CloseClipboard   = win.MustGetProcAddress(libuser32, "CloseClipboard")
+	EmptyClipboard   = win.MustGetProcAddress(libuser32, "EmptyClipboard")
+	OpenClipboard    = win.MustGetProcAddress(libuser32, "OpenClipboard")
+	SetClipboardData = win.MustGetProcAddress(libuser32, "SetClipboardData")
+
+	GetSystemMetrics = win.MustGetProcAddress(libuser32, "GetSystemMetrics")
+	//
+	//CloseClipboard, _   = syscall.GetProcAddress(syscall.Handle(libuser32), "CloseClipboard")
+	//EmptyClipboard, _   = syscall.GetProcAddress(syscall.Handle(libuser32), "EmptyClipboard")
+	//OpenClipboard, _    = syscall.GetProcAddress(syscall.Handle(libuser32), "OpenClipboard")
+	//SetClipboardData, _ = syscall.GetProcAddress(syscall.Handle(libuser32), "SetClipboardData")
+)
+
+//鼠标左键操作
+func mouseClick() {
+	mouse_event(win.MOUSEEVENTF_LEFTDOWN)
+	mouse_event(win.MOUSEEVENTF_LEFTUP)
+}
+
+//鼠标右键操作
+func mouseRightClick() {
+	mouse_event(win.MOUSEEVENTF_RIGHTDOWN)
+	mouse_event(win.MOUSEEVENTF_RIGHTUP)
+}
+
+func mouseScroll(count int) {
+	for i := 0; i < count; i++ {
+		_, _, err := syscall.Syscall(mouse, 3, uintptr(win.MOUSEEVENTF_WHEEL), 0, 120)
+		println(err.Error())
+		time.Sleep(time.Millisecond)
+	}
+}
+
+//键盘Control+V
+func keydbCV() {
+	keybd_even(win.VK_CONTROL, 0)
+	keybd_even(enum.VK_V, 0)
+	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
+	keybd_even(enum.VK_V, win.KEYEVENTF_KEYUP)
+}
+
+func keydbEnter() {
+	keybd_even(win.VK_RETURN, 0)
+	time.Sleep(time.Second)
+	keybd_even(win.VK_RETURN, win.KEYEVENTF_KEYUP)
+}
+
+func getScreen() (int32, int32) {
+	x, r2, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CXSCREEN, 0, 0)
+	println(x, r2, err.Error())
+	y, r2, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CYSCREEN, 0, 0)
+	println(y, r2, err.Error())
+	return int32(x), int32(y)
+}
+
+func findWindow(winClass, winTitle string, foreground bool) (h win.HWND, size enum.Size, rect win.RECT, err error) {
+	h = win.FindWindow(StrUint16(winClass), StrUint16(winTitle))
+	//激活窗体
+	flog := win.SetForegroundWindow(h)
+	if !flog {
+		err = errors.New("查找【" + winTitle + "】窗体失败")
+		return
+	}
+	if foreground {
+		//激活窗体
+		flog = win.SetForegroundWindow(h)
+		if !flog {
+			err = errors.New("激活【" + winTitle + "】窗体失败")
+			return
+		}
+	}
+	var baseRect win.RECT
+	flog = win.GetClientRect(h, &baseRect)
+	if !flog {
+		err = errors.New("获取【" + winTitle + "】窗体窗口大小失败")
+		return
+	}
+	size.Width = baseRect.Right
+	size.Height = baseRect.Bottom
+	fmt.Printf("【"+winTitle+"】窗体大小：width：%v，height：%v", size.Width, size.Height)
+	flog = win.GetWindowRect(h, &rect)
+	if !flog {
+		err = errors.New("查找【" + winTitle + "】窗体坐标失败")
+		return
+	}
+	fmt.Printf("查找【"+winTitle+"】坐标：TOP：%v，Left：%v，Bottom：%v，Right：%v", rect.Top, rect.Left, rect.Bottom, rect.Right)
+	return
+}
+
+func main() {
+	//屏幕分辨率
+	x, y := getScreen()
+	fmt.Printf("分辨率：x：%v,y:%v", x, y)
+	//找到窗体句柄
+	_, size, rect, err := findWindow("WeChatMainWndForPC", "微信测试版", true)
+	if err != nil {
+		println(err.Error())
+		return
+	}
+
+	//最大化
+	//win.PostMessage(wechatWin, win.WM_SYSCOMMAND, win.SC_MAXIMIZE, 0)
+
+	//选择文件传输助手
+	win.SetCursorPos(rect.Left+33, rect.Top+92)
+	time.Sleep(time.Second)
+	mouseClick()
+	mouseClick()
+	time.Sleep(time.Second)
+	win.SetCursorPos(rect.Left+190, rect.Top+80)
+	time.Sleep(time.Second)
+	mouseScroll(3000)
+	time.Sleep(time.Second)
+	mouseClick()
+
+	//鼠标定位会话编辑框
+	win.SetCursorPos(rect.Left+500, rect.Top+size.Height-50)
+	time.Sleep(time.Second)
+	//var point win.POINT
+	//win.GetCursorPos(&point)
+	//println(fmt.Sprintf("%v", point))
+	//win.SendMessage(0, win.MOUSEEVENTF_LEFTDOWN, 0, 0)
+	//选择会话编辑框
+	mouseClick()
+	time.Sleep(time.Second)
+	//keydbCV()
+	//发送消息
+	keydbEnter()
+	time.Sleep(time.Second)
+	//鼠标定位二维码
+	win.SetCursorPos(rect.Left+size.Width-110, rect.Top+size.Height-200)
+	time.Sleep(time.Second)
+	//点击二维码，进入图片查看器
+	mouseClick()
+	time.Sleep(time.Second)
+	//获取图片二维码窗口信息
+	_, _, rect, err = findWindow("ImagePreviewWnd", "图片查看器", false)
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	time.Sleep(time.Second)
+	//鼠标移动到图片二维码中心位置
+	imgLeft := rect.Left + 120
+	imgTop := rect.Top + 200
+	win.SetCursorPos(imgLeft, imgTop)
+	time.Sleep(time.Second)
+	//右键
+	mouseRightClick()
+	time.Sleep(time.Second)
+	//鼠标移动到右键菜单识别二维码
+	win.SetCursorPos(imgLeft+70, imgTop+90)
+	time.Sleep(time.Second)
+	//点击识别二维码
+	mouseClick()
+	time.Sleep(time.Second * 3)
+	//查找加群窗口
+	_, size, rect, err = findWindow("CefWebViewWnd", "微信测试版", false)
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	//鼠标移动到加群按钮
+	win.SetCursorPos(rect.Left+size.Width/2, rect.Top+370)
+	//点击按钮加群
+	mouseClick()
+
+	//_, _, err := syscall.Syscall(keybd, 3, uintptr(win.VK_CONTROL), 0, 0)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(86), 0, 0)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(win.VK_CONTROL), 0, win.KEYEVENTF_KEYUP)
+	//println(err.Error())
+	//_, _, err = syscall.Syscall(keybd, 3, uintptr(86), 0, win.KEYEVENTF_KEYUP)
+	//println(err.Error())
+
+	//NewBitmapFromFile("sam.jpg")
+
+	//_, _, err := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("1----------")
+	//
+	//r, r2, err := syscall.Syscall(SetClipboardData, 2, win.CF_TEXT, StrPtr("wang te"), 0)
+	//println(r, r2, err.Error())
+	//println("3----------")
+	//_, _, err = syscall.Syscall(EmptyClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("2----------")
+	//_, _, err = syscall.Syscall(SetClipboardData, 3, win.CF_BITMAP, imgb.Fd(), 0)
+	//println(err.Error())
+	//r, r2, err := syscall.Syscall(SetClipboardData, 2, win.CF_TEXT, StrPtr("wang te"), 0)
+	//println(r, r2, err.Error())
+	//println("3----------")
+	//_, _, err = syscall.Syscall(CloseClipboard, 0, 0, 0, 0)
+	//println(err.Error())
+	//println("4----------")
+	//win.EmptyClipboard()
+	//win.SetClipboardData(win.CF_TEXT, win.HANDLE(StrPtr("wang te")))
+	//win.SetClipboardData(win.CF_BITMAP, win.HANDLE(imgb.Fd()))
+
+}
+
+// SetText sets the current text data of the clipboard.
+func SetText(s string) error {
+	_, _, err2 := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	println(err2.Error())
+	println("1----------")
+
+	utf16, err := syscall.UTF16FromString(s)
+	if err != nil {
+		return err
+	}
+
+	hMem := win.GlobalAlloc(win.GMEM_MOVEABLE, uintptr(len(utf16)*2))
+	if hMem == 0 {
+		return errors.New("GlobalAlloc")
+	}
+
+	p := win.GlobalLock(hMem)
+	if p == nil {
+		return errors.New("GlobalLock()")
+	}
+
+	win.MoveMemory(p, unsafe.Pointer(&utf16[0]), uintptr(len(utf16)*2))
+
+	win.GlobalUnlock(hMem)
+
+	if 0 == win.SetClipboardData(win.CF_UNICODETEXT, win.HANDLE(hMem)) {
+		// We need to free hMem.
+		defer win.GlobalFree(hMem)
+
+		return errors.New("SetClipboardData")
+	}
+	return nil
+}
+
+// Image
+func NewBitmapFromFile(filePath string) (hPackedDIB win.HGLOBAL, err error) {
+	var si win.GdiplusStartupInput
+	si.GdiplusVersion = 1
+	if status := win.GdiplusStartup(&si, nil); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdiplusStartup failed with status '%s'", status))
+	}
+	defer win.GdiplusShutdown()
+
+	var gpBmp *win.GpBitmap
+	if status := win.GdipCreateBitmapFromFile(syscall.StringToUTF16Ptr(filePath), &gpBmp); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdipCreateBitmapFromFile failed with status '%s' for file '%s'", status, filePath))
+	}
+	defer win.GdipDisposeImage((*win.GpImage)(gpBmp))
+
+	var hBmp win.HBITMAP
+	if status := win.GdipCreateHBITMAPFromBitmap(gpBmp, &hBmp, 0); status != win.Ok {
+		return 0, errors.New(fmt.Sprintf("GdipCreateHBITMAPFromBitmap failed with status '%s' for file '%s'", status, filePath))
+	}
+
+	return newBitmapFromHBITMAP(hBmp)
+}
+
+func newBitmapFromHBITMAP(hBmp win.HBITMAP) (hPackedDIB win.HGLOBAL, err error) {
+
+	_, _, err2 := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
+	println(err2.Error())
+	println("1----------")
+
+	var dib win.DIBSECTION
+	if win.GetObject(win.HGDIOBJ(hBmp), unsafe.Sizeof(dib), unsafe.Pointer(&dib)) == 0 {
+		return 0, errors.New("GetObject failed")
+	}
+
+	bmih := &dib.DsBmih
+
+	bmihSize := uintptr(unsafe.Sizeof(*bmih))
+	pixelsSize := uintptr(int32(bmih.BiBitCount)*bmih.BiWidth*bmih.BiHeight) / 8
+
+	totalSize := uintptr(bmihSize + pixelsSize)
+
+	hPackedDIB = win.GlobalAlloc(win.GHND, totalSize)
+	dest := win.GlobalLock(hPackedDIB)
+	defer win.GlobalUnlock(hPackedDIB)
+
+	src := unsafe.Pointer(&dib.DsBmih)
+
+	win.MoveMemory(dest, src, bmihSize)
+
+	dest = unsafe.Pointer(uintptr(dest) + bmihSize)
+	src = dib.DsBm.BmBits
+
+	win.MoveMemory(dest, src, pixelsSize)
+	println(hPackedDIB)
+	r := win.SetClipboardData(win.CF_TIFF, win.HANDLE(hPackedDIB))
+	if 0 == r {
+		// We need to free hMem.
+		defer win.GlobalFree(hPackedDIB)
+
+		return 0, errors.New("SetClipboardData")
+	}
+	return hPackedDIB, nil
+}
+func mouse_event(me int) (uintptr, uintptr, error) {
+	r, r2, err := syscall.Syscall(mouse, 3, uintptr(me), 0, 0)
+	println(err.Error())
+	return r, r2, err
+}
+
+func keybd_even(bVk, bScan int) (uintptr, uintptr, error) {
+	r, r2, err := syscall.Syscall(keybd, 3, uintptr(bVk), 0, uintptr(bScan))
+	println(err.Error())
+	return r, r2, err
+}
+
+func IntPtr(n int) uintptr {
+	return uintptr(n)
+}
+
+func StrPtr(s string) uintptr {
+	return uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(s)))
+}
+
+func StrUint16(s string) *uint16 {
+	return syscall.StringToUTF16Ptr(s)
+}
+
+func abort(funcname string, err error) {
+	panic(fmt.Sprintf("%s failed: %v", funcname, err))
+}
+
+var (
+	kernel32, _        = syscall.LoadLibrary("kernel32.dll")
+	getModuleHandle, _ = syscall.GetProcAddress(kernel32, "GetModuleHandleW")
+	user32, _          = syscall.LoadLibrary("user32.dll")
+	messageBox, _      = syscall.GetProcAddress(user32, "MessageBoxW")
+)
+
+const (
+	MB_OK                = 0x00000000
+	MB_OKCANCEL          = 0x00000001
+	MB_ABORTRETRYIGNORE  = 0x00000002
+	MB_YESNOCANCEL       = 0x00000003
+	MB_YESNO             = 0x00000004
+	MB_RETRYCANCEL       = 0x00000005
+	MB_CANCELTRYCONTINUE = 0x00000006
+	MB_ICONHAND          = 0x00000010
+	MB_ICONQUESTION      = 0x00000020
+	MB_ICONEXCLAMATION   = 0x00000030
+	MB_ICONASTERISK      = 0x00000040
+	MB_USERICON          = 0x00000080
+	MB_ICONWARNING       = MB_ICONEXCLAMATION
+	MB_ICONERROR         = MB_ICONHAND
+	MB_ICONINFORMATION   = MB_ICONASTERISK
+	MB_ICONSTOP          = MB_ICONHAND
+	MB_DEFBUTTON1        = 0x00000000
+	MB_DEFBUTTON2        = 0x00000100
+	MB_DEFBUTTON3        = 0x00000200
+	MB_DEFBUTTON4        = 0x00000300
+)
+
+func MessageBox(caption, text string, style uintptr) (result int) {
+	var nargs uintptr = 4
+	ret, _, callErr := syscall.Syscall9(uintptr(messageBox), nargs, 0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(text))), uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(caption))), style, 0, 0, 0, 0, 0)
+	if callErr != 0 {
+		abort("Call MessageBox", callErr)
+	}
+	result = int(ret)
+	return
+}
+func GetModuleHandle() (handle uintptr) {
+	var nargs uintptr = 0
+	if ret, _, callErr := syscall.Syscall(uintptr(getModuleHandle), nargs, 0, 0, 0); callErr != 0 {
+		abort("Call GetModuleHandle", callErr)
+	} else {
+		handle = ret
+	}
+	return
+}
+
+//func main() {
+//	defer syscall.FreeLibrary(kernel32)
+//	defer syscall.FreeLibrary(user32)
+//	fmt.Printf("Return: %d\n", MessageBox("Done Title", "This test is Done.", MB_YESNOCANCEL))
+//}
+func init() {
+	fmt.Print("Starting Up\n")
+}

@@ -1,0 +1,33 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+!chromedriver.exe
+ChromeUserData/*
+site.txt
+sitedetail.txt
+siteDoMain.txt
+siteOld.txt
+debug
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
+.glide/
+.idea/
+.vscode
+*.log
+*.txt
+spread
+spread.exe
+spread_go.exe
+sso
+hive
+www
+static
+static/*

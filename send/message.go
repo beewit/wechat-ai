@@ -9,9 +9,10 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strconv"
-	"github.com/beewit/wechat-client/enum"
+	"github.com/beewit/wechat-ai/enum"
 	"net/http"
 	"errors"
+	"github.com/beewit/beekit/utils/convert"
 )
 
 /**
@@ -146,7 +147,12 @@ func WebWxSync(loginMap *LoginMap) (WxRecvMsges, error) {
 	return wxMsges, nil
 }
 
-func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) error {
+func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) (bts []byte, err error) {
+
+	println("loginMap" + convert.ToObjStr(loginMap))
+
+	println("wxSendMsg" + convert.ToObjStr(wxSendMsg))
+
 	urlMap := map[string]string{}
 	urlMap[enum.Lang] = enum.LangValue
 	urlMap[enum.PassTicket] = loginMap.PassTicket
@@ -158,16 +164,16 @@ func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) error {
 
 	jsonBytes, err := json.Marshal(wxSendMsgMap)
 	if err != nil {
-		return err
+		return
 	}
 
 	// TODO: 发送微信消息时暂不处理返回值
-	_, err = http.Post(enum.WEB_WX_SENDMSG_URL+GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
+	rep, err := http.Post(enum.WEB_WX_SENDMSG_URL+GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
 	if err != nil {
-		return err
+		return
 	}
-
-	return nil
+	bts, err = ioutil.ReadAll(rep.Body)
+	return
 }
 
 /* 邀请联系人加入群 */

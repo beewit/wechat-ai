@@ -1,0 +1,8 @@
+{
+  "logger": {
+    "path": "spread.log",
+    "level": "7",
+    "maxdays": "10",
+    "separate": "error"
+  }
+}

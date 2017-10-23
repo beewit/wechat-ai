@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"strings"
 	"regexp"
-	"github.com/beewit/wechat-client/enum"
+	"github.com/beewit/wechat-ai/enum"
 	"net/http"
 )
 

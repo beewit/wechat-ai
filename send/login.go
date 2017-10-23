@@ -1,6 +1,6 @@
 package send
 
-import ( 
+import (
 	"net/http"
 	"fmt"
 	"encoding/xml"
@@ -11,9 +11,9 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strconv"
-	"io"
-	"github.com/beewit/wechat-client/enum"
+	"github.com/beewit/wechat-ai/enum"
 	"errors"
+	"encoding/base64"
 )
 
 /* 从微信服务器获取登陆uuid */
@@ -51,27 +51,18 @@ func GetUUIDFromWX() (string, error) {
 }
 
 /* 下载URL指向的JPG，保存到指定路径下的qrcodenum.jpg文件 */
-func DownloadImagIntoDir(url string, dirPath string) error {
-	//检查并创建临时目录
-	if !isDirExist(dirPath) {
-		os.Mkdir(dirPath, 0755)
-		fmt.Println("dir %s created", dirPath)
-	}
-
+func DownloadImage(url string) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
-
-	dst, err := os.Create(dirPath + "/qrcodenum.jpg")
+	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, resp.Body)
-	return err
+	base64Img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
+	return base64Img, err
 }
 
 /* 判断微信是否登陆 */
@@ -113,7 +104,7 @@ func CheckLogin(uuid string) (int64, string) {
  * 解析XML，向map中压入相关数据
  */
 func ProcessLoginInfo(loginInfoStr string) (LoginMap, error) {
-	resultMap :=LoginMap{}
+	resultMap := LoginMap{}
 	reg := regexp.MustCompile(`window.redirect_uri="(\S+)";`)
 	matches := reg.FindStringSubmatch(loginInfoStr)
 	if len(matches) < 2 {

@@ -40,8 +40,14 @@ type BaseRequest struct {
 
 /* 微信初始化时返回的大JSON，选择性地提取一些关键数据 */
 type InitInfo struct {
-	User     User             `json:"User"`
-	SyncKeys SyncKeysJsonData `json:"SyncKey"`
+	User           User             `json:"User"`
+	SyncKeys       SyncKeysJsonData `json:"SyncKey"`
+	AllContactList []AllContactList `json:"ContactList"`
+}
+
+type AllContactList struct {
+	User
+	MemberList []User `json:"MemberList"`
 }
 
 /* 微信获取所有联系人列表时返回的大JSON */
@@ -117,7 +123,6 @@ type WxSendMsg struct {
 	ClientMsgId  string `json:"ClientMsgId"`
 }
 
-
 /* 获取联系人列表时需要带入Cookie信息，实现CookieJar接口 */
 type Jar struct {
 	cookies []*http.Cookie
@@ -142,7 +147,6 @@ type LoginMap struct {
 
 	Cookies []*http.Cookie /* 微信相关API需要用到的Cookies */
 }
-
 
 var (
 	uuid       string
@@ -230,9 +234,6 @@ func GetChildKeywordsInfo(fatherName string) (string, string, string) {
 
 	return focusGroupKeywords[index].Description, focusGroupKeywords[index].ExampleStr, keywordsStr
 }
-
-
-
 
 /**
  * 有序(或者无序)地从一个map中按照index的顺序构造URL中的params

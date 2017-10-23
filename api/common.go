@@ -9,7 +9,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/beewit/wechat-client/enum"
+	"github.com/beewit/wechat-ai/enum"
 	"github.com/pkg/errors"
 	//	"net/url"
 	//	"math/rand"
@@ -63,6 +63,20 @@ func keydbCV() {
 	keybd_even(enum.VK_V, 0)
 	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
 	keybd_even(enum.VK_V, win.KEYEVENTF_KEYUP)
+}
+
+//键盘Control+A
+func keydbCA() {
+	keybd_even(win.VK_CONTROL, 0)
+	keybd_even(enum.VK_A, 0)
+	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
+	keybd_even(enum.VK_A, win.KEYEVENTF_KEYUP)
+}
+
+//键盘BackSpace
+func keydbBack() {
+	keybd_even(win.VK_BACK, 0)
+	keybd_even(win.VK_BACK, win.KEYEVENTF_KEYUP)
 }
 
 func keydbEnter() {
@@ -149,16 +163,16 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	win.SetCursorPos(rect.Left+33, rect.Top+92)
 	time.Sleep(time.Second)
 	mouseClick()
-	mouseClick()
+	//mouseClick()
 	time.Sleep(time.Second)
 	win.SetCursorPos(rect.Left+190, rect.Top+80)
 	time.Sleep(time.Second)
-	mouseScroll(3000)
+	mouseScroll(300)
 	time.Sleep(time.Second)
 	mouseClick()
 
 	//鼠标定位会话编辑框
-	win.SetCursorPos(rect.Left+500, rect.Top+size.Height-50)
+	win.SetCursorPos(rect.Left+360, rect.Top+size.Height-60)
 	time.Sleep(time.Second)
 	//var point win.POINT
 	//win.GetCursorPos(&point)
@@ -167,14 +181,20 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//选择会话编辑框
 	mouseClick()
 	time.Sleep(time.Second)
-	keydbCV()
-	//发送消息
-	keydbEnter()
+	keydbCA()
 	time.Sleep(time.Second)
-	//鼠标定位二维码
-	win.SetCursorPos(rect.Left+size.Width-110, rect.Top+size.Height-200)
+	keydbBack()
+	time.Sleep(time.Second)
+	keydbCV()
+	////发送消息
+	//keydbEnter()
+	//time.Sleep(time.Second)
+	////鼠标定位二维码
+	//win.SetCursorPos(rect.Left+size.Width-110, rect.Top+size.Height-200)
 	time.Sleep(time.Second)
 	//点击二维码，进入图片查看器
+	mouseClick()
+	time.Sleep(time.Millisecond)
 	mouseClick()
 	time.Sleep(time.Second)
 	//获取图片二维码窗口信息

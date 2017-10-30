@@ -14,6 +14,7 @@ import (
 	"github.com/beewit/wechat-ai/enum"
 	"errors"
 	"encoding/base64"
+	"github.com/beewit/beekit/utils/convert"
 )
 
 /* 从微信服务器获取登陆uuid */
@@ -50,7 +51,7 @@ func GetUUIDFromWX() (string, error) {
 	return matches[2], nil
 }
 
-/* 下载URL指向的JPG，保存到指定路径下的qrcodenum.jpg文件 */
+/* 下载URL指向的JPG base64*/
 func DownloadImage(url string) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -63,6 +64,21 @@ func DownloadImage(url string) (string, error) {
 	}
 	base64Img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
 	return base64Img, err
+}
+
+/* 下载URL指向的JPG base64*/
+func DownloadImageCookie(url string) (string, []*http.Cookie, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, err
+	}
+	base64Img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
+	return base64Img, resp.Cookies(), err
 }
 
 /* 判断微信是否登陆 */
@@ -103,12 +119,12 @@ func CheckLogin(uuid string) (int64, string) {
  * 首先根据回调URI再次Get一次微信服务器，得到XML格式的登陆数据
  * 解析XML，向map中压入相关数据
  */
-func ProcessLoginInfo(loginInfoStr string) (LoginMap, error) {
+func ProcessLoginInfo(loginInfoStr string) (*LoginMap, error) {
 	resultMap := LoginMap{}
 	reg := regexp.MustCompile(`window.redirect_uri="(\S+)";`)
 	matches := reg.FindStringSubmatch(loginInfoStr)
 	if len(matches) < 2 {
-		return resultMap, errors.New("登陆反馈的信息格式有误")
+		return &resultMap, errors.New("登陆反馈的信息格式有误")
 	}
 
 	/* https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxnewloginpage?ticket=AQ2uT-dEQQWVcwTg_oiY2UYl@qrticket_0&uuid=gb2NHSWMLg==&lang=zh_CN&scan=1503967665 */
@@ -117,14 +133,14 @@ func ProcessLoginInfo(loginInfoStr string) (LoginMap, error) {
 	/* 这里除了XML的返回之外，还会有一些Cookie数据传给客户端，需要收集起来 */
 	resp, err := http.Get(orginUri)
 	if err != nil {
-		return resultMap, errors.New("访问微信登陆回调URL有误" + err.Error())
+		return &resultMap, errors.New("访问微信登陆回调URL有误" + err.Error())
 	}
 	defer resp.Body.Close()
-
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return resultMap, errors.New("获取微信登陆回调URL数据失败:" + err.Error())
+		return &resultMap, errors.New("获取微信登陆回调URL数据失败:" + err.Error())
 	}
+	println("登录webwxnewloginpage：", string(bodyBytes))
 
 	loginCallbackXMLResult := LoginCallbackXMLResult{}
 	err = xml.Unmarshal(bodyBytes, &loginCallbackXMLResult)
@@ -139,7 +155,7 @@ func ProcessLoginInfo(loginInfoStr string) (LoginMap, error) {
 	/* 收集Cookie */
 	resultMap.Cookies = resp.Cookies()
 
-	return resultMap, nil
+	return &resultMap, nil
 }
 
 /* 初始化微信登陆数据 */
@@ -149,6 +165,7 @@ func InitWX(loginMap *LoginMap) error {
 	var timestamp int64 = time.Now().UnixNano() / 1000000
 	urlMap[enum.R] = fmt.Sprintf("%d", ^(int32)(timestamp))
 	urlMap[enum.PassTicket] = loginMap.PassTicket
+	urlMap[enum.Lang] = enum.LangValue
 
 	/* post数据 */
 	initPostJsonData := map[string]interface{}{}
@@ -171,20 +188,21 @@ func InitWX(loginMap *LoginMap) error {
 	if err != nil {
 		return err
 	}
-	println(string(bodyBytes))
+	println("微信初始化数据：" + string(bodyBytes))
 	initInfo := InitInfo{}
 	err = json.Unmarshal(bodyBytes, &initInfo)
 	if err != nil {
-		return errors.New("无法解析JSON至InitInfo对象:" + err.Error())
+		return errors.New("无法解析JSON至InitInfo对象:" + err.Error() + "，bodyBytes：" + string(bodyBytes))
 	}
-
+	loginMap.InitInfo = &initInfo
 	loginMap.SelfNickName = initInfo.User.NickName
 	loginMap.SelfUserName = initInfo.User.UserName
 
+	println("initInfo", convert.ToObjStr(initInfo))
+
 	/* 组装synckey */
 	if initInfo.SyncKeys.Count < 1 {
-		fmt.Println(string(bodyBytes))
-		return errors.New("微信返回的数据有误")
+		return errors.New("微信返回的数据有误，SyncKeys未获取到！，bodyBytes：" + string(bodyBytes))
 	}
 	loginMap.SyncKeys = initInfo.SyncKeys
 	loginMap.SyncKeyStr = initInfo.SyncKeys.ToString()

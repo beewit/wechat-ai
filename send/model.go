@@ -40,9 +40,16 @@ type BaseRequest struct {
 
 /* 微信初始化时返回的大JSON，选择性地提取一些关键数据 */
 type InitInfo struct {
-	User           User             `json:"User"`
-	SyncKeys       SyncKeysJsonData `json:"SyncKey"`
-	AllContactList []AllContactList `json:"ContactList"`
+	BaseResponse        BaseResponse     `json:"BaseResponse"`
+	SKey                string           `json:"SKey"`
+	ClientVersion       int32            `json:"ClientVersion"`
+	SystemTime          int32            `json:"SystemTime"`
+	GrayScale           int32            `json:"GrayScale"`
+	InviteStartCount    int32            `json:"InviteStartCount"`
+	ClickReportInterval int32            `json:"ClickReportInterval"`
+	User                User             `json:"User"`
+	SyncKeys            SyncKeysJsonData `json:"SyncKey"`
+	AllContactList      []AllContactList `json:"ContactList"`
 }
 
 type AllContactList struct {
@@ -52,8 +59,9 @@ type AllContactList struct {
 
 /* 微信获取所有联系人列表时返回的大JSON */
 type ContactList struct {
-	MemberCount int    `json:"MemberCount"`
-	MemberList  []User `json:"MemberList"`
+	BaseResponse BaseResponse `json:"BaseResponse"`
+	MemberCount  int          `json:"MemberCount"`
+	MemberList   []User       `json:"MemberList"`
 }
 
 /* 微信通用User结构，可根据需要扩展 */
@@ -65,6 +73,7 @@ type User struct {
 	Sex        int8   `json:"Sex"`
 	Province   string `json:"Province"`
 	City       string `json:"City"`
+	HeadImgUrl string `json:"HeadImgUrl"`
 }
 
 type SyncKeysJsonData struct {
@@ -75,6 +84,24 @@ type SyncKeysJsonData struct {
 type SyncKey struct {
 	Key int64 `json:"Key"`
 	Val int64 `json:"Val"`
+}
+
+/*
+{"Ret": 0,"ErrMsg": ""} 成功
+{"Ret": -14,"ErrMsg": ""} ticket 错误
+{"Ret": 1,"ErrMsg": ""} 传入参数 错误
+{"Ret": 1100"ErrMsg": ""}未登录提示
+{"Ret": 1101,"ErrMsg": ""}（可能：1未检测到登陆？）
+{"Ret": 1102,"ErrMsg": ""}（可能：cookie值无效？）
+*/
+
+type Response struct {
+	BaseResponse BaseResponse `json:"BaseResponse"`
+}
+
+type BaseResponse struct {
+	Ret    int    `json:"Ret"`
+	ErrMsg string `json:"ErrMsg"`
 }
 
 /* 设计一个构造成字符串的结构体方法 */
@@ -115,12 +142,30 @@ type WxRecvMsg struct {
  * 微信发送消息对象元素
  */
 type WxSendMsg struct {
-	Type         int    `json:"Type"`
-	Content      string `json:"Content"`
-	FromUserName string `json:"FromUserName"`
-	ToUserName   string `json:"ToUserName"`
-	LocalID      string `json:"LocalID"`
-	ClientMsgId  string `json:"ClientMsgId"`
+	BaseResponse BaseResponse `json:"BaseResponse"`
+	Type         int          `json:"Type"`
+	Content      string       `json:"Content"`
+	FromUserName string       `json:"FromUserName"`
+	ToUserName   string       `json:"ToUserName"`
+	LocalID      string       `json:"LocalID"`
+	ClientMsgId  string       `json:"ClientMsgId"`
+}
+
+type WxAddUser struct {
+	BaseResponse       BaseResponse `json:"BaseResponse"`
+	BaseRequest        BaseRequest
+	Opcode             int          `json:"Opcode"`
+	SceneList          []int        `json:"SceneList"`
+	SceneListCount     int          `json:"SceneListCount"`
+	VerifyContent      string       `json:"VerifyContent"`
+	VerifyUserList     []VerifyUser
+	VerifyUserListSize int          `json:"VerifyUserListSize"`
+	SKey               string       `json:"skey"`
+}
+
+type VerifyUser struct {
+	Value            string `json:"Value"`
+	VerifyUserTicket string `json:"VerifyUserTicket"`
 }
 
 /* 获取联系人列表时需要带入Cookie信息，实现CookieJar接口 */
@@ -145,94 +190,9 @@ type LoginMap struct {
 	SyncKeys   SyncKeysJsonData /* 同步消息时需要验证的Keys */
 	SyncKeyStr string           /* Keys组装成的字符串 */
 
-	Cookies []*http.Cookie /* 微信相关API需要用到的Cookies */
-}
-
-var (
-	uuid       string
-	err        error
-	loginMap   LoginMap
-	contactMap map[string]User
-	groupMap   map[string][]User /* 关键字为key的，群组数组 */
-)
-
-/**
- * 这个文件用来维护焦点微信群的关键字的正则表达式
- * TODO:后期使用数据库维护
- */
-
-type FocusGroupKeywords struct {
-	FatherName   string
-	Description  string
-	ExampleStr   string
-	ChildrenName []string
-}
-
-var focusGroupKeywords []FocusGroupKeywords
-
-func init() {
-	focusGroupKeywords = []FocusGroupKeywords{}
-	/*
-
-	focusGroupKeywords = append(focusGroupKeywords, FocusGroupKeywords{
-		FatherName:  "1-0|编程",
-		Description: "这些群组可以快速帮你结识相关领域志同道合的爱好者，程序猿并不是一个人在战斗！",
-		ExampleStr:  `"Golang"或者其索引号"1-1"，我会邀请您加入专业探讨Golang技术的微信群。`,
-		ChildrenName: []string{"1-1|Golang", "1-2|Java", "1-3|Python", "1-4|Nodejs", "1-5|Qt",
-			"1-6|SQL|数据库",
-			"1-7|Angular", "1-8|Vue", "1-9|React", "1-10|jQuery",
-			"1-11|Linux", "1-12|Android", "1-13|IOS", "1-14|全栈"}})
-
-	*/
-}
-func GetFocusGroupKeywords() []FocusGroupKeywords {
-	return focusGroupKeywords
-}
-
-/* 获取所有关键词 */
-func GetFocusGroupKeywordChildren() []string {
-	keywords := []string{}
-
-	for _, v := range focusGroupKeywords {
-		for _, str := range v.ChildrenName {
-			keywords = append(keywords, str)
-		}
-	}
-
-	return keywords
-}
-
-/* 得到关键词父级目录 */
-func GetFatherKeywordsStr() string {
-	keywordsStr := ""
-
-	for _, v := range focusGroupKeywords {
-		keywordsStr += v.FatherName + "\n"
-	}
-
-	return keywordsStr
-}
-
-/* 返回分组介绍和所有分组关键词的组装 */
-func GetChildKeywordsInfo(fatherName string) (string, string, string) {
-	keywordsStr := ""
-	var index int
-
-	for index = 0; index < len(focusGroupKeywords); index++ {
-		if focusGroupKeywords[index].FatherName == fatherName {
-			break
-		}
-	}
-
-	if index == len(focusGroupKeywords) {
-		return "", "", ""
-	}
-
-	for _, str := range focusGroupKeywords[index].ChildrenName {
-		keywordsStr += str + "\n"
-	}
-
-	return focusGroupKeywords[index].Description, focusGroupKeywords[index].ExampleStr, keywordsStr
+	Cookies    []*http.Cookie /* 微信相关API需要用到的Cookies */
+	InitInfo   *InitInfo
+	ContactMap map[string]User
 }
 
 /**

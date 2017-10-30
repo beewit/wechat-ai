@@ -12,7 +12,6 @@ import (
 	"github.com/beewit/wechat-ai/enum"
 	"net/http"
 	"errors"
-	"github.com/beewit/beekit/utils/convert"
 )
 
 /**
@@ -32,6 +31,7 @@ import (
  *	LOGIN_OUT("1102", "退出"),
  *	LOGIN_OTHERWHERE("1101", "其它地方登陆"),
  *	MOBILE_LOGIN_OUT("1102", "移动端退出"),
+*
  *	UNKOWN("9999", "未知")
  *
  * 自己分析下来
@@ -148,31 +148,57 @@ func WebWxSync(loginMap *LoginMap) (WxRecvMsges, error) {
 }
 
 func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) (bts []byte, err error) {
-
-	println("loginMap" + convert.ToObjStr(loginMap))
-
-	println("wxSendMsg" + convert.ToObjStr(wxSendMsg))
-
 	urlMap := map[string]string{}
 	urlMap[enum.Lang] = enum.LangValue
 	urlMap[enum.PassTicket] = loginMap.PassTicket
-
 	wxSendMsgMap := map[string]interface{}{}
 	wxSendMsgMap[enum.BaseRequest] = loginMap.BaseRequest
 	wxSendMsgMap["Msg"] = wxSendMsg
 	wxSendMsgMap["Scene"] = 0
-
 	jsonBytes, err := json.Marshal(wxSendMsgMap)
 	if err != nil {
 		return
 	}
-
 	// TODO: 发送微信消息时暂不处理返回值
 	rep, err := http.Post(enum.WEB_WX_SENDMSG_URL+GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
 	if err != nil {
 		return
 	}
 	bts, err = ioutil.ReadAll(rep.Body)
+	return
+}
+
+func AddUser(loginMap *LoginMap, content string, verifyUser []VerifyUser) (br Response, err error) {
+	urlMap := map[string]string{}
+	urlMap[enum.R] = fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
+	urlMap[enum.Lang] = enum.LangValue
+	urlMap[enum.PassTicket] = loginMap.PassTicket
+
+	wxAddUser := WxAddUser{}
+	wxAddUser.SKey = loginMap.InitInfo.SKey
+	wxAddUser.VerifyContent = content
+	wxAddUser.SceneListCount = 1
+	wxAddUser.SceneList = []int{33}
+	wxAddUser.Opcode = 2
+	wxAddUser.BaseRequest = loginMap.BaseRequest
+	wxAddUser.VerifyUserList = verifyUser
+	wxAddUser.VerifyUserListSize = len(verifyUser)
+	jsonBytes, err := json.Marshal(wxAddUser)
+	if err != nil {
+		return
+	}
+	// TODO: 发送微信消息时暂不处理返回值
+	rep, err := http.Post(enum.WEB_WX_VERIFY_USER+GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
+	if err != nil {
+		return
+	}
+	bts, err := ioutil.ReadAll(rep.Body)
+	if err != nil {
+		return
+	}
+	println(enum.WEB_WX_VERIFY_USER + GetURLParams(urlMap))
+	println("Respone：", string(bts))
+	err = json.Unmarshal(bts, &br)
 	return
 }
 

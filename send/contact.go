@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"io/ioutil"
 	"encoding/json"
-	"strings"
-	"regexp"
 	"github.com/beewit/wechat-ai/enum"
 	"net/http"
 )
@@ -19,7 +17,6 @@ import (
  */
 func GetAllContact(loginMap *LoginMap) (map[string]User, error) {
 	contactMap := map[string]User{}
-
 	urlMap := enum.GetInitParaEnum()
 	urlMap[enum.PassTicket] = loginMap.PassTicket
 	urlMap[enum.R] = fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
@@ -39,12 +36,12 @@ func GetAllContact(loginMap *LoginMap) (map[string]User, error) {
 		return contactMap, err
 	}
 	defer resp.Body.Close()
-
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return contactMap, err
 	}
 
+	println(string(bodyBytes))
 	contactList := ContactList{}
 	err = json.Unmarshal(bodyBytes, &contactList)
 	if err != nil {
@@ -58,20 +55,3 @@ func GetAllContact(loginMap *LoginMap) (map[string]User, error) {
 	return contactMap, nil
 }
 
-func MapGroupInfo(contactMap map[string]User) map[string][]User {
-	groupMap := map[string][]User{}
-
-	for _, user := range contactMap {
-		if strings.HasPrefix(user.UserName, "@@") {
-			/* 如果该联系人是一个群组，依次判断是否需要加入焦点群列表 */
-			for _, key := range GetFocusGroupKeywordChildren() {
-				reg := regexp.MustCompile(key)
-				if reg.MatchString(user.UserName) || reg.MatchString(user.NickName) {
-					groupMap[strings.ToLower(key)] = append(groupMap[strings.ToLower(key)], user)
-				}
-			}
-		}
-	}
-
-	return groupMap
-}

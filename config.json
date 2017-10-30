@@ -1,6 +1,6 @@
 {
   "logger": {
-    "path": "spread.log",
+    "path": "wechat-ai.log",
     "level": "7",
     "maxdays": "10",
     "separate": "error"

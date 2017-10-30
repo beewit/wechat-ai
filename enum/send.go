@@ -27,6 +27,13 @@ const (
 	DeviceId    = "deviceid"
 	SyncKey     = "synckey"
 	BaseRequest = "BaseRequest"
+
+	WECHAT_RESPONE_NORMAL           = 0    //正常
+	WECHAT_RESPONE_LOGIN_ERR        = -14  // ticket 错误
+	WECHAT_RESPONE_LOGIN_OUT        = 1100 //退出未登录
+	WECHAT_RESPONE_LOGIN_OTHERWHERE = 1101 //其它地方登陆
+	WECHAT_RESPONE_MOBILE_LOGIN_OUT = 1102 //移动端退出
+	WECHAT_RESPONE_FREQUENTLY       = 1205 //操作频繁
 )
 
 var (
@@ -60,4 +67,3 @@ func GetLoginParaEnum() map[string]string {
 func GetInitParaEnum() map[string]string {
 	return initParaEnum
 }
-

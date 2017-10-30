@@ -10,6 +10,7 @@ sitedetail.txt
 siteDoMain.txt
 siteOld.txt
 debug
+config.json
 
 # Test binary, build with `go test -c`
 *.test
@@ -31,3 +32,4 @@ hive
 www
 static
 static/*
+ChromeUserData

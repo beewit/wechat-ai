@@ -1,4 +1,4 @@
-package send
+package smartWechat
 
 import (
 	"net/http"
@@ -66,21 +66,6 @@ func DownloadImage(url string) (string, error) {
 	return base64Img, err
 }
 
-/* 下载URL指向的JPG base64*/
-func DownloadImageCookie(url string) (string, []*http.Cookie, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", nil, err
-	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", nil, err
-	}
-	base64Img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
-	return base64Img, resp.Cookies(), err
-}
-
 /* 判断微信是否登陆 */
 func CheckLogin(uuid string) (int64, string) {
 	var timestamp int64 = time.Now().UnixNano() / 1000000
@@ -119,8 +104,8 @@ func CheckLogin(uuid string) (int64, string) {
  * 首先根据回调URI再次Get一次微信服务器，得到XML格式的登陆数据
  * 解析XML，向map中压入相关数据
  */
-func ProcessLoginInfo(loginInfoStr string) (*LoginMap, error) {
-	resultMap := LoginMap{}
+func ProcessLoginInfo(loginInfoStr string) (*WechatClient, error) {
+	resultMap := WechatClient{}
 	reg := regexp.MustCompile(`window.redirect_uri="(\S+)";`)
 	matches := reg.FindStringSubmatch(loginInfoStr)
 	if len(matches) < 2 {
@@ -159,7 +144,7 @@ func ProcessLoginInfo(loginInfoStr string) (*LoginMap, error) {
 }
 
 /* 初始化微信登陆数据 */
-func InitWX(loginMap *LoginMap) error {
+func InitWX(loginMap *WechatClient) error {
 	/* post URL */
 	var urlMap = enum.GetInitParaEnum()
 	var timestamp int64 = time.Now().UnixNano() / 1000000
@@ -214,7 +199,7 @@ func InitWX(loginMap *LoginMap) error {
  * 通知微信服务器状态变化，只要通知即可，无需处理返回数据
  * {"BaseRequest":{"Uin":154158775,"Sid":"/nxZxJ0LclxmOw8v","Skey":"@crypt_3aaab8d5_cdfa952ec95e594b100f44aba942a73c","DeviceID":"e390742104557152"},"Code":3,"FromUserName":"@fc96d593487db4fb92b9a633aec8293b","ToUserName":"@fc96d593487db4fb92b9a633aec8293b","ClientMsgId":1504571331980}
  */
-func NotifyStatus(loginMap *LoginMap) error {
+func NotifyStatus(loginMap *WechatClient) error {
 	urlMap := map[string]string{
 		enum.PassTicket: loginMap.PassTicket}
 

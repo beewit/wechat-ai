@@ -1,0 +1,5 @@
+package ai
+
+func QQ() {
+
+}

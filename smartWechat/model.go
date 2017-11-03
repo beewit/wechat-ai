@@ -1,4 +1,4 @@
-package send
+package smartWechat
 
 import (
 	"net/url"
@@ -180,7 +180,7 @@ func (jar *Jar) Cookies(u *url.URL) []*http.Cookie {
 	return jar.cookies
 }
 
-type LoginMap struct {
+type WechatClient struct {
 	PassTicket  string
 	BaseRequest BaseRequest /* 将涉及登陆有关的验证数据封装成对象 */
 
@@ -217,7 +217,6 @@ func GetURLParams(values ...interface{}) string {
 			}
 		}
 	}
-
 	return result[:len(result)-1]
 }
 

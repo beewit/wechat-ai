@@ -15,170 +15,6 @@ import (
 	//	"math/rand"
 )
 
-var (
-	// Library
-	libuser32 = win.MustLoadLibrary("user32.dll")
-
-	// Functions
-	mouse = win.MustGetProcAddress(libuser32, "mouse_event")
-	keybd = win.MustGetProcAddress(libuser32, "keybd_event")
-
-	CloseClipboard   = win.MustGetProcAddress(libuser32, "CloseClipboard")
-	EmptyClipboard   = win.MustGetProcAddress(libuser32, "EmptyClipboard")
-	OpenClipboard    = win.MustGetProcAddress(libuser32, "OpenClipboard")
-	SetClipboardData = win.MustGetProcAddress(libuser32, "SetClipboardData")
-
-	GetSystemMetrics = win.MustGetProcAddress(libuser32, "GetSystemMetrics")
-	ClientToScreen   = win.MustGetProcAddress(libuser32, "ClientToScreen")
-	RegisterHotKey   = win.MustGetProcAddress(libuser32, "RegisterHotKey")
-	UnregisterHotKey = win.MustGetProcAddress(libuser32, "UnregisterHotKey")
-)
-
-//鼠标左键操作
-func mouseClick() {
-	mouse_event(win.MOUSEEVENTF_LEFTDOWN)
-	mouse_event(win.MOUSEEVENTF_LEFTUP)
-}
-
-//鼠标右键操作
-func mouseRightClick() {
-	mouse_event(win.MOUSEEVENTF_RIGHTDOWN)
-	mouse_event(win.MOUSEEVENTF_RIGHTUP)
-}
-
-func mouseScroll(count int) {
-	for i := 0; i < count; i++ {
-		_, _, err := syscall.Syscall(mouse, 3, uintptr(win.MOUSEEVENTF_WHEEL), 0, 120)
-		errStr := err.Error()
-		if errStr != "The operation completed successfully." {
-			println(errStr)
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
-
-func mouse_event(me int) (uintptr, uintptr, error) {
-	r, r2, err := syscall.Syscall(mouse, 3, uintptr(me), 0, 0)
-	errStr := err.Error()
-	if errStr != "The operation completed successfully." {
-		println(errStr)
-	}
-	return r, r2, err
-}
-
-//键盘Control+V
-func keydbCV() {
-	keybd_even(win.VK_CONTROL, 0)
-	keybd_even(enum.VK_V, 0)
-	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
-	keybd_even(enum.VK_V, win.KEYEVENTF_KEYUP)
-}
-
-//键盘Control+A
-func keydbCA() {
-	keybd_even(win.VK_CONTROL, 0)
-	keybd_even(enum.VK_A, 0)
-	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
-	keybd_even(enum.VK_A, win.KEYEVENTF_KEYUP)
-}
-
-//键盘Control+Alt+W
-func keydbCSW() {
-	keybd_even(win.VK_CONTROL, 0)
-	keybd_even(win.VK_MENU, 0)
-	keybd_even(enum.VK_W, 0)
-	keybd_even(win.VK_CONTROL, win.KEYEVENTF_KEYUP)
-	keybd_even(win.VK_MENU, win.KEYEVENTF_KEYUP)
-	keybd_even(enum.VK_W, win.KEYEVENTF_KEYUP)
-}
-
-func keydbKey(key int) {
-	keybd_even(key, 0)
-	keybd_even(key, win.KEYEVENTF_KEYUP)
-}
-
-//键盘BackSpace
-func keydbBack() {
-	keybd_even(win.VK_BACK, 0)
-	keybd_even(win.VK_BACK, win.KEYEVENTF_KEYUP)
-}
-
-func keydbEnter() {
-	keybd_even(win.VK_RETURN, 0)
-	time.Sleep(time.Second)
-	keybd_even(win.VK_RETURN, win.KEYEVENTF_KEYUP)
-}
-
-func getScreen() (int32, int32) {
-	x, _, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CXSCREEN, 0, 0)
-	errStr := err.Error()
-	if errStr != "The operation completed successfully." {
-		println(errStr)
-	}
-	y, _, err := syscall.Syscall(GetSystemMetrics, 1, win.SM_CYSCREEN, 0, 0)
-	errStr = err.Error()
-	if errStr != "The operation completed successfully." {
-		println(errStr)
-	}
-	return int32(x), int32(y)
-}
-
-func GetClientToScreen(hWnd win.HWND, rect *win.POINT) bool {
-	ret, _, _ := syscall.Syscall(ClientToScreen, 2,
-		uintptr(hWnd),
-		uintptr(unsafe.Pointer(rect)),
-		0)
-	return ret != 0
-}
-
-func FindWindow(winClass, winTitle string, foreground bool, start func()) (h win.HWND, size enum.Size, rect win.RECT, err error) {
-	h = win.FindWindow(StrUint16(winClass), StrUint16(winTitle))
-	//激活窗体
-	//win.MustGetProcAddress(libuser32, "SwitchToThisWindow")
-	//win.ShowWindow(h, win.SW_SHOW)
-	//win.SetWindowPos(h, win.HWND_TOP, 0, 0, 0, 0, win.SWP_NOSIZE)
-	if start != nil {
-		start()
-	}
-	flog := win.SetForegroundWindow(h)
-	if !flog {
-		err = errors.New("查找【" + winTitle + "】窗体失败")
-		return
-	}
-	if foreground {
-		//激活窗体
-		flog = win.SetForegroundWindow(h)
-		if !flog {
-			err = errors.New("激活【" + winTitle + "】窗体失败")
-			return
-		}
-	}
-	var baseRect win.RECT
-	flog = win.GetClientRect(h, &baseRect)
-	if !flog {
-		err = errors.New("获取【" + winTitle + "】窗体窗口大小失败")
-		return
-	}
-	size.Width = baseRect.Right
-	size.Height = baseRect.Bottom
-	println(fmt.Sprintf("【"+winTitle+"】窗体大小：width：%v，height：%v", size.Width, size.Height))
-	flog = win.GetWindowRect(h, &rect)
-	if !flog {
-		err = errors.New("查找【" + winTitle + "】窗体坐标失败")
-		return
-	}
-	println(fmt.Sprintf("查找【"+winTitle+"】坐标：TOP：%v，Left：%v，Bottom：%v，Right：%v", rect.Top, rect.Left, rect.Bottom, rect.Right))
-	return
-}
-
-func SetCursorPos(hwnd win.HWND, x, y int32) {
-	var point win.POINT
-	point.X = x
-	point.Y = y
-	GetClientToScreen(hwnd, &point)
-	println(fmt.Sprintf("原始坐标：x：%v，y：%v，坐标：x：%v，y：%v", x, y, point.X, point.Y))
-	win.SetCursorPos(point.X, point.Y)
-}
 
 func Wechat(title string, off *enum.Offset) (err error) {
 	//启动复制
@@ -206,10 +42,10 @@ func Wechat(title string, off *enum.Offset) (err error) {
 
 	time.Sleep(time.Second)
 	//右键
-	mouseRightClick()
+	MouseRightClick()
 	time.Sleep(time.Second)
 	//快捷键Y
-	keydbKey(enum.VK_Y)
+	KeydbKey(enum.VK_Y)
 	time.Sleep(time.Second)
 	////鼠标移动到右键菜单复制
 	//win.SetCursorPos(point.X+30, point.Y+60)
@@ -217,12 +53,12 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//mouseClick()
 
 	//屏幕分辨率
-	x, y := getScreen()
+	x, y := GetScreen()
 	println(fmt.Sprintf("分辨率：x：%v,y:%v", x, y))
 	time.Sleep(time.Second * 2)
 	//找到窗体句柄
 	wechatWin, size, _, err := FindWindow("WeChatMainWndForPC", "微信", true, func() {
-		keydbCSW()
+		KeydbCSW()
 	})
 	if err != nil {
 		wechatWin, size, _, err = FindWindow("WeChatMainWndForPC", "微信测试版", true, nil)
@@ -239,15 +75,15 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	SetCursorPos(wechatWin, 33, 95)
 	//win.SetCursorPos(rect.Left+33, rect.Top+92)
 	time.Sleep(time.Second)
-	mouseClick()
+	MouseClick()
 	//mouseClick()
 	time.Sleep(time.Second)
 	SetCursorPos(wechatWin, 190, 85)
 	//win.SetCursorPos(rect.Left+190, rect.Top+80)
 	time.Sleep(time.Second)
-	mouseScroll(300)
+	MouseScroll(300)
 	time.Sleep(time.Second)
-	mouseClick()
+	MouseClick()
 
 	//鼠标定位会话编辑框
 	if x < 1550 && x > 1500 {
@@ -264,13 +100,13 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//println(fmt.Sprintf("%v", point))
 	//win.SendMessage(0, win.MOUSEEVENTF_LEFTDOWN, 0, 0)
 	//选择会话编辑框
-	mouseClick()
+	MouseClick()
 	time.Sleep(time.Second)
-	keydbCA()
+	KeydbCA()
 	time.Sleep(time.Second)
-	keydbBack()
+	KeydbBack()
 	time.Sleep(time.Second)
-	keydbCV()
+	KeydbCV()
 	////发送消息
 	//keydbEnter()
 	//time.Sleep(time.Second)
@@ -278,9 +114,9 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//win.SetCursorPos(rect.Left+size.Width-110, rect.Top+size.Height-200)
 	time.Sleep(time.Second)
 	//点击二维码，进入图片查看器
-	mouseClick()
+	MouseClick()
 	time.Sleep(time.Millisecond)
-	mouseClick()
+	MouseClick()
 	time.Sleep(time.Second)
 	//获取图片二维码窗口信息
 	imageWin, _, _, err := FindWindow("ImagePreviewWnd", "图片查看器", false, nil)
@@ -296,14 +132,14 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//win.SetCursorPos(imgLeft, imgTop)
 	time.Sleep(time.Second)
 	//右键
-	mouseRightClick()
+	MouseRightClick()
 	time.Sleep(time.Second)
 	//鼠标移动到右键菜单识别二维码
 	SetCursorPos(imageWin, 190, 290)
 	//win.SetCursorPos(imgLeft+70, imgTop+90)
 	time.Sleep(time.Second)
 	//点击识别二维码
-	mouseClick()
+	MouseClick()
 	time.Sleep(time.Second * 3)
 	//查找加群窗口
 	cefWebViewWndWin, size, _, err := FindWindow("CefWebViewWnd", "微信", false, nil)
@@ -319,7 +155,7 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	//win.SetCursorPos(rect.Left+size.Width/2, rect.Top+370)
 	time.Sleep(time.Second * 2)
 	//点击按钮加群
-	mouseClick()
+	MouseClick()
 	return nil
 }
 
@@ -353,10 +189,4 @@ func SetText(s string) error {
 		return errors.New("SetClipboardData")
 	}
 	return nil
-}
-
-func keybd_even(bVk, bScan int) (uintptr, uintptr, error) {
-	r, r2, err := syscall.Syscall(keybd, 3, uintptr(bVk), 0, uintptr(bScan))
-	println(err.Error())
-	return r, r2, err
 }

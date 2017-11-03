@@ -2,7 +2,6 @@ package test
 
 import (
 	"testing"
-	"github.com/beewit/wechat-ai/send"
 	"fmt"
 	"github.com/beewit/beekit/utils/convert"
 	"github.com/beewit/wechat-ai/enum"
@@ -14,6 +13,7 @@ import (
 	"time"
 	"net/http"
 	"github.com/beewit/beekit/redis"
+	"github.com/beewit/wechat-ai/smartWechat"
 )
 
 func TestTimUninx(t *testing.T) {
@@ -22,7 +22,7 @@ func TestTimUninx(t *testing.T) {
 
 func TestJson(t *testing.T) {
 	b, _ := ioutil.ReadFile("userinfo.json")
-	var initInfo *send.InitInfo
+	var initInfo *smartWechat.InitInfo
 	err := json.Unmarshal(b, &initInfo)
 	if err != nil {
 		t.Error(err.Error())
@@ -31,7 +31,7 @@ func TestJson(t *testing.T) {
 	printlnInfo(initInfo)
 }
 
-func printlnInfo(initInfo *send.InitInfo) {
+func printlnInfo(initInfo *smartWechat.InitInfo) {
 	if initInfo != nil {
 		for _, v := range initInfo.AllContactList {
 			for _, vv := range v.MemberList {
@@ -41,16 +41,16 @@ func printlnInfo(initInfo *send.InitInfo) {
 	}
 }
 
-func printlnInfo2(loginMap *send.LoginMap) {
+func printlnInfo2(loginMap *smartWechat.WechatClient) {
 	initInfo := loginMap.InitInfo
 	if initInfo != nil {
 		for _, v := range initInfo.AllContactList {
 			for _, vv := range v.MemberList {
 				println("【" + v.NickName + "】" + vv.UserName)
 				if v.NickName == "工蜂小智内测" {
-					vu := send.VerifyUser{}
+					vu := smartWechat.VerifyUser{}
 					vu.Value = vv.UserName
-					b, err := send.AddUser(loginMap, "你好，我是工蜂小智助手", []send.VerifyUser{vu})
+					b, err := smartWechat.AddUser(loginMap, "你好，我是工蜂小智助手", []smartWechat.VerifyUser{vu})
 					if err != nil {
 						println(err.Error())
 					} else {
@@ -67,23 +67,23 @@ func TestAddUser(t *testing.T) {
 	urlMap := map[string]string{}
 	urlMap[enum.R] = fmt.Sprintf("%d", ^(int32)(timestamp))
 
-	var br send.BaseRequest
+	var br smartWechat.BaseRequest
 	err := json.Unmarshal([]byte(`{"Uin":3374717726,"Sid":"WsrVCY8kERN6yF/6","Skey":"@crypt_4ffa22b9_adeb7efadd694c33864662a5e68ce7a9","DeviceID":"e270484016143139"}`), &br)
 	if err != nil {
 		println(err.Error())
 		return
 	}
-	vu := send.VerifyUser{}
+	vu := smartWechat.VerifyUser{}
 	vu.Value = "@aa99026aca9686d9b6446db973c1c1342efe2fc5bd4bf12aeadeb34a503edbb8"
 
-	wxAddUser := send.WxAddUser{}
+	wxAddUser := smartWechat.WxAddUser{}
 	wxAddUser.SKey = "@crypt_4ffa22b9_adeb7efadd694c33864662a5e68ce7a9"
 	wxAddUser.VerifyContent = "我是执手并肩看天下"
 	wxAddUser.SceneListCount = 1
 	wxAddUser.SceneList = []int{33}
 	wxAddUser.Opcode = 2
 	wxAddUser.BaseRequest = br
-	wxAddUser.VerifyUserList = []send.VerifyUser{vu}
+	wxAddUser.VerifyUserList = []smartWechat.VerifyUser{vu}
 	wxAddUser.VerifyUserListSize = 1
 	jsonBytes, err := json.Marshal(wxAddUser)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestAddUser(t *testing.T) {
 	}
 	println(string(jsonBytes))
 	// TODO: 发送微信消息时暂不处理返回值
-	rep, err := http.Post(enum.WEB_WX_VERIFY_USER+send.GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
+	rep, err := http.Post(enum.WEB_WX_VERIFY_USER+smartWechat.GetURLParams(urlMap), enum.JSON_HEADER, strings.NewReader(string(jsonBytes)))
 	if err != nil {
 		return
 	}
@@ -106,19 +106,19 @@ func TestAddUser(t *testing.T) {
 func TestLoginWX(t *testing.T) {
 	var err error
 	var SendStatusMsg string
-	var LoginMap *send.LoginMap
+	var LoginMap *smartWechat.WechatClient
 	var UUid string
 	wlm, err := redis.Cache.GetString("wechat_login_map")
 	if wlm == "" {
 		/* 从微信服务器获取UUID */
-		UUid, err = send.GetUUIDFromWX()
+		UUid, err = smartWechat.GetUUIDFromWX()
 		if err != nil {
 			t.Error("GetUUIDFromWX Error：" + err.Error())
 
 			return
 		}
 		/* 根据UUID获取二维码 */
-		base64Img, err := send.DownloadImage(enum.QRCODE_URL + UUid)
+		base64Img, err := smartWechat.DownloadImage(enum.QRCODE_URL + UUid)
 		if err != nil {
 			t.Error("DownloadImage Error：" + err.Error())
 			return
@@ -136,11 +136,11 @@ func TestLoginWX(t *testing.T) {
 		for {
 			SendStatusMsg = "【" + UUid + "】正在验证登陆... ..."
 			t.Log(SendStatusMsg)
-			status, msg := send.CheckLogin(UUid)
+			status, msg := smartWechat.CheckLogin(UUid)
 			if status == 200 {
 				SendStatusMsg = "登陆成功,处理登陆信息..."
 				t.Log(SendStatusMsg)
-				LoginMap, err = send.ProcessLoginInfo(msg)
+				LoginMap, err = smartWechat.ProcessLoginInfo(msg)
 				if err != nil {
 					SendStatusMsg = "错误：登陆成功,处理登陆信息...，error：" + err.Error()
 					t.Log(SendStatusMsg)
@@ -148,7 +148,7 @@ func TestLoginWX(t *testing.T) {
 				}
 				SendStatusMsg = "登陆信息处理完毕,正在初始化微信..."
 				t.Log(SendStatusMsg)
-				err = send.InitWX(LoginMap)
+				err = smartWechat.InitWX(LoginMap)
 				if err != nil {
 					if err != nil {
 						SendStatusMsg = "错误：登陆信息处理完毕,正在初始化微信...，error：" + err.Error()
@@ -158,7 +158,7 @@ func TestLoginWX(t *testing.T) {
 				}
 				SendStatusMsg = "初始化完毕,通知微信服务器登陆状态变更..."
 				t.Log(SendStatusMsg)
-				err = send.NotifyStatus(LoginMap)
+				err = smartWechat.NotifyStatus(LoginMap)
 				if err != nil {
 					panic(err)
 				}
@@ -184,7 +184,7 @@ func TestLoginWX(t *testing.T) {
 	}
 	SendStatusMsg = "开始获取联系人信息..."
 	t.Log(SendStatusMsg)
-	ContactMap, err := send.GetAllContact(LoginMap)
+	ContactMap, err := smartWechat.GetAllContact(LoginMap)
 	if err != nil {
 		SendStatusMsg = "错误：开始获取联系人信息...，error：" + err.Error()
 		t.Log(SendStatusMsg)

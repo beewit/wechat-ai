@@ -1,4 +1,4 @@
-package send
+package smartWechat
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
  * 微信API对此URL使用了Cookie验证
  * GET:https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxgetcontact?lang=zh_CN&pass_ticket=dfLHy%252Fcgw%252BFM1qGhuARU6%252BDGs%252BGmWAD3jZJk6%252BfWcPs%253D&r=1504587952374&seq=0&skey=@crypt_3aaab8d5_c87634a7c5f8f579095cfdceeb8d842a
  */
-func GetAllContact(loginMap *LoginMap) (map[string]User, error) {
+func GetAllContact(loginMap *WechatClient) (map[string]User, error) {
 	contactMap := map[string]User{}
 	urlMap := enum.GetInitParaEnum()
 	urlMap[enum.PassTicket] = loginMap.PassTicket

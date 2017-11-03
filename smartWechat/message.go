@@ -1,4 +1,4 @@
-package send
+package smartWechat
 
 import (
 	"encoding/json"
@@ -40,7 +40,7 @@ import (
  * 	2:有人发消息了 拉取后，MsgType = 1为文字消息，提取content得到聊天文本
  * 	每次拉取，需要更新SyncKey，见WebWxSync函数
  **/
-func SyncCheck(loginMap *LoginMap) (int64, int64, error) {
+func SyncCheck(loginMap *WechatClient) (int64, int64, error) {
 	urlMap := map[string]string{}
 	urlMap[enum.R] = fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
 	urlMap[enum.SKey] = loginMap.BaseRequest.SKey
@@ -105,7 +105,7 @@ func SyncCheck(loginMap *LoginMap) (int64, int64, error) {
  * }
  * @param {[type]} loginMap LoginMap [description]
  */
-func WebWxSync(loginMap *LoginMap) (WxRecvMsges, error) {
+func WebWxSync(loginMap *WechatClient) (WxRecvMsges, error) {
 	wxMsges := WxRecvMsges{}
 
 	urlMap := map[string]string{}
@@ -147,7 +147,7 @@ func WebWxSync(loginMap *LoginMap) (WxRecvMsges, error) {
 	return wxMsges, nil
 }
 
-func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) (bts []byte, err error) {
+func SendMsg(loginMap *WechatClient, wxSendMsg WxSendMsg) (bts []byte, err error) {
 	urlMap := map[string]string{}
 	urlMap[enum.Lang] = enum.LangValue
 	urlMap[enum.PassTicket] = loginMap.PassTicket
@@ -168,7 +168,7 @@ func SendMsg(loginMap *LoginMap, wxSendMsg WxSendMsg) (bts []byte, err error) {
 	return
 }
 
-func AddUser(loginMap *LoginMap, content string, verifyUser []VerifyUser) (br Response, err error) {
+func AddUser(loginMap *WechatClient, content string, verifyUser []VerifyUser) (br Response, err error) {
 	urlMap := map[string]string{}
 	urlMap[enum.R] = fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
 	urlMap[enum.Lang] = enum.LangValue
@@ -203,7 +203,7 @@ func AddUser(loginMap *LoginMap, content string, verifyUser []VerifyUser) (br Re
 }
 
 /* 邀请联系人加入群 */
-func InviteMember(loginMap *LoginMap, memberUserName string, chatRoomUserName string) error {
+func InviteMember(loginMap *WechatClient, memberUserName string, chatRoomUserName string) error {
 	urlMap := map[string]string{}
 	urlMap["fun"] = "invitemember"
 

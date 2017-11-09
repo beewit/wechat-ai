@@ -11,6 +11,7 @@ siteDoMain.txt
 siteOld.txt
 debug
 config.json
+chromedriver.exe
 
 # Test binary, build with `go test -c`
 *.test

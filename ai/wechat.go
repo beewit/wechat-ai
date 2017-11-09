@@ -2,19 +2,11 @@ package ai
 
 import (
 	"fmt"
-	"syscall"
-
-	"github.com/lxn/win"
-
 	"time"
-	"unsafe"
-
 	"github.com/beewit/wechat-ai/enum"
-	"github.com/pkg/errors"
 	//	"net/url"
 	//	"math/rand"
 )
-
 
 func Wechat(title string, off *enum.Offset) (err error) {
 	//启动复制
@@ -156,37 +148,5 @@ func Wechat(title string, off *enum.Offset) (err error) {
 	time.Sleep(time.Second * 2)
 	//点击按钮加群
 	MouseClick()
-	return nil
-}
-
-// SetText sets the current text data of the clipboard.
-func SetText(s string) error {
-	_, _, err2 := syscall.Syscall(OpenClipboard, 0, 0, 0, 0)
-	println(err2.Error())
-	utf16, err := syscall.UTF16FromString(s)
-	if err != nil {
-		return err
-	}
-
-	hMem := win.GlobalAlloc(win.GMEM_MOVEABLE, uintptr(len(utf16)*2))
-	if hMem == 0 {
-		return errors.New("GlobalAlloc")
-	}
-
-	p := win.GlobalLock(hMem)
-	if p == nil {
-		return errors.New("GlobalLock()")
-	}
-
-	win.MoveMemory(p, unsafe.Pointer(&utf16[0]), uintptr(len(utf16)*2))
-
-	win.GlobalUnlock(hMem)
-
-	if 0 == win.SetClipboardData(win.CF_UNICODETEXT, win.HANDLE(hMem)) {
-		// We need to free hMem.
-		defer win.GlobalFree(hMem)
-
-		return errors.New("SetClipboardData")
-	}
 	return nil
 }

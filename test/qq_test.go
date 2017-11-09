@@ -226,3 +226,15 @@ func uid4444(str string) string {
 
 	return fmt.Sprint(2147483647 & e)
 }
+
+func TestArr(t *testing.T) {
+	var arr []int
+	arr = append(arr, 20)
+	arr = append(arr, 30)
+	arr = append(arr, 50)
+	println(convert.ToObjStr(arr))
+	arr = nil
+	arr = append(arr, 30)
+	println("test",convert.ToObjStr(arr))
+
+}

@@ -33,13 +33,18 @@ var (
 	getFriendInfoUrl      = "http://s.web2.qq.com/api/get_friend_info2"
 	sendMsgUrl            = "http://d1.web2.qq.com/channel/send_buddy_msg2"
 	sendQunMsgUrl         = "http://d1.web2.qq.com/channel/send_qun_msg2"
+	getFriendListUrl      = "http://qun.qq.com/cgi-bin/qun_mgr/get_friend_list"
+	getGroupMembersUrl    = "http://qinfo.clt.qq.com/cgi-bin/qun_info/get_group_members_new"
+	getGroupSearchUrl     = "http://qun.qq.com/cgi-bin/group_search/pc_group_search"
 )
 
 type QQClient struct {
 	Login              Login
 	UserInfo           map[int64]UserInfo
 	FriendsMap         FriendsMap
+	FriendsMap2        map[int64]FriendsMap2
 	GroupInfo          map[int64]GroupInfo
+	GroupMembers       GroupMembers
 	QtQrShowUrl        string
 	LoginQrCode        string
 	PtQrToken          string
@@ -56,6 +61,9 @@ type QQClient struct {
 	LoginCheck         bool
 	LoginCheckTimeOut  time.Duration
 	MsgID              int
+	PtSigX             string
+	SearchGroup        SearchGroup
+	SearchKeyWord      string
 }
 
 type Login struct {
@@ -239,10 +247,93 @@ type PollValue struct {
 	ToUin     int64         `json:"to_uin,omitempty"`
 }
 
+/*      含QQ号码的接口信息     */
+//【群组】含QQ号码
+type GroupList2 struct {
+	RetCode
+	Create Group2 `json:"create,omitempty"`
+	Join   Group2 `json:"join,omitempty"`
+	Manage Group2 `json:"manage,omitempty"`
+}
+
+type Group2 struct {
+	QQ    int64  `json:"gc,omitempty"`
+	GName string `json:"gname,omitempty"`
+	Owner int64  `json:"owner,omitempty"`
+}
+
+//【群成员】含QQ号码
+type GroupMembers struct {
+	RetCode
+	ExtName   int               `json:"ext_name,omitempty"`
+	GMemNum   int               `json:"gMemNum,omitempty"`
+	Friends   []int64           `json:"friends,omitempty"`
+	Adm       []int64           `json:"adm,omitempty"`
+	Cards     map[string]string `json:"cards,omitempty"`
+	Join      map[int64]int64   `json:"join,omitempty"`
+	Level     int               `json:"level,omitempty"`
+	LevelName map[string]string `json:"levelname,omitempty"`
+	Mems      []Mems            `json:"mems"`
+}
+
+type Mems struct {
+	B    int    `json:"b,omitempty"`
+	G    int    `json:"g,omitempty"`
+	Nick string `json:"n,omitempty"`
+	QQ   int64  `json:"u,omitempty"`
+}
+
+//【好友】含QQ号码
+type FriendList2 struct {
+	RetCode
+	Result map[int]FriendGroup2 `json:"result,omitempty"` //key分组sort
+}
+
+//好友组
+type FriendGroup2 struct {
+	GName string    `json:"gname,omitempty"`
+	Mems  []Member2 `json:"mems,omitempty"`
+}
+
+type FriendsMap2 struct {
+	Sort     int
+	GName    string
+	QQ       int64
+	NiceName string
+}
+
+//好友组中的好友列表
+type Member2 struct {
+	Name string `json:"name,omitempty"`
+	QQ   int64  `json:"uin,omitempty"` //实际是QQ号码
+}
+
+//【搜索群组】
+type SearchGroup struct {
+	RetCode
+	Total           int               `json:"gTotal"`
+	SearchGroupList []SearchGroupList `json:"group_list"`
+}
+
+type SearchGroupList struct {
+	Name            string
+	CertificateName string `json:"certificate_name"`
+	Geo             string `json:"geo"`
+	GId             int64  `json:"gid"`
+	RichFingerMemo  string `json:"richfingermemo"`
+	Url             string `json:"url"`
+	OwnerUin        int64  `json:"owner_uin"`
+}
+
+type RetCode struct {
+	RetCode int `json:"ec,omitempty"`
+}
+
 func NewQQClient(qq *QQClient) *QQClient {
 	qq.UserInfo = make(map[int64]UserInfo)
 	qq.GroupInfo = make(map[int64]GroupInfo)
-	cookies := []*http.Cookie{}
+	qq.FriendsMap2 = make(map[int64]FriendsMap2)
+	var cookies []*http.Cookie
 	cookies = append(cookies, &http.Cookie{Name: "RK", Value: "OfeLBai4FB"})
 	cookies = append(cookies, &http.Cookie{Name: "pgv_pvi", Value: "911366144"})
 	cookies = append(cookies, &http.Cookie{Name: "pgv_info", Value: "OfeLBai4FB"})
@@ -306,13 +397,23 @@ func Hash(x int64, K string) string {
 	return V1
 }
 
+func BtnHash(e string) string {
+	n := int64(5381)
+	i := len(e)
+	for r := 0; r < i; r++ {
+		n += (n << 5) + int64(e[r])
+	}
+	return convert.ToString(n & 2147483647)
+}
+
 func Start(qq *QQClient) (newQQ *QQClient, err error) {
 	newQQ = qq
 	flog := true
 	if newQQ.LoginCacheFilePath != "" {
 		bts, _ := ioutil.ReadFile(newQQ.LoginCacheFilePath)
+		println(string(bts))
 		if bts != nil && string(bts) != "" {
-			json.Unmarshal(bts, &qq)
+			json.Unmarshal(bts, &newQQ)
 		}
 		rep, err := newQQ.TestLogin()
 		if err == nil && rep.RetCode == 0 {
@@ -338,11 +439,11 @@ func Start(qq *QQClient) (newQQ *QQClient, err error) {
 	if err != nil {
 		return
 	}
-	if newQQ.QrCodeFilePath != "" {
+	if newQQ.LoginCacheFilePath != "" {
 		var f *os.File
-		f, err = os.OpenFile(newQQ.QrCodeFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+		f, err = os.OpenFile(newQQ.LoginCacheFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		defer f.Close()
-		f.Write([]byte(convert.ToObjStr(qq)))
+		f.Write([]byte(convert.ToObjStr(newQQ)))
 		if err != nil {
 			return
 		}
@@ -483,6 +584,11 @@ func (qq *QQClient) CheckLogin(backFunc func(newQQ *QQClient, err error)) (newQQ
 func (qq *QQClient) GetVFWebQQ() (qqRes QQResponse, err error) {
 	var resp *http.Response
 	var bodyBytes []byte
+	url, err := url.Parse(qq.Login.Url)
+	if err != nil {
+		return
+	}
+	qq.PtSigX = url.Query().Get("ptsigx")
 	resp, bodyBytes, err = qq.HttpRequestGet(qq.Login.Url, nil, nil)
 	if err != nil {
 		return
@@ -541,7 +647,6 @@ func (qq *QQClient) TestLogin() (qqRes QQResponseObj, err error) {
 	var bodyBytes []byte
 
 	head := map[string]string{
-		"Cookie":  qq.GetCookieStr(),
 		"Host":    "d1.web2.qq.com",
 		"Referer": "http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2",
 	}
@@ -750,6 +855,128 @@ func (qq *QQClient) SendQunMsg(toGroupUin int64, content string) (res QQResponse
 	return
 }
 
+func (qq *QQClient) GetFriendList() (friendList FriendList2, err error) {
+	var bodyBytes []byte
+	sKeyCookie := qq.GetCookie("skey")
+	if sKeyCookie == nil {
+		err = errors.New("Cookie skey 不存在，请重新登录")
+		return
+	}
+	uinCookie := qq.GetCookie("uin")
+	if uinCookie == nil {
+		err = errors.New("Cookie uin 不存在，请重新登录")
+		return
+	}
+	psKeyCookie := qq.GetCookie("p_skey")
+	if psKeyCookie == nil {
+		err = errors.New("Cookie p_skey 不存在，请重新登录")
+		return
+	}
+	sKey := sKeyCookie.Value
+	uin := uinCookie.Value
+	psKey := psKeyCookie.Value
+	bnk := fmt.Sprintf("bkn=%s", BtnHash(sKey))
+	head := map[string]string{
+		"Cookie":  fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, sKey, uin, psKey),
+		"Host":    "qun.qq.com",
+		"Referer": "http://qun.qq.com/member.html",
+	}
+	_, bodyBytes, err = qq.HttpRequestPost(getFriendListUrl, head, bnk)
+	err = json.Unmarshal(bodyBytes, &friendList)
+	if err != nil {
+		return
+	}
+	if friendList.RetCode.RetCode == 0 && friendList.Result != nil {
+		for k, v := range friendList.Result {
+			for _, v2 := range v.Mems {
+				fm := FriendsMap2{}
+				fm.QQ = v2.QQ
+				fm.NiceName = v2.Name
+				fm.GName = v.GName
+				fm.Sort = k
+				qq.FriendsMap2[fm.QQ] = fm
+			}
+		}
+	}
+	return
+}
+
+func (qq *QQClient) GetGroupMembers(gQQ int64) (groupMembers GroupMembers, err error) {
+	var bodyBytes []byte
+	sKeyCookie := qq.GetCookie("skey")
+	if sKeyCookie == nil {
+		err = errors.New("Cookie skey 不存在，请重新登录")
+		return
+	}
+	uinCookie := qq.GetCookie("uin")
+	if uinCookie == nil {
+		err = errors.New("Cookie uin 不存在，请重新登录")
+		return
+	}
+	psKeyCookie := qq.GetCookie("p_skey")
+	if psKeyCookie == nil {
+		err = errors.New("Cookie p_skey 不存在，请重新登录")
+		return
+	}
+	sKey := sKeyCookie.Value
+	uin := uinCookie.Value
+	psKey := psKeyCookie.Value
+	bnk := fmt.Sprintf("gc=%d&st=0&end=5000&sort=0&bkn=%s", gQQ, BtnHash(sKey))
+	head := map[string]string{
+		"Cookie":  fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, sKey, uin, psKey),
+		"Host":    "qun.qq.com",
+		"Origin":  "http://qun.qq.com",
+		"Referer": "http://qun.qq.com/member.html",
+	}
+	_, bodyBytes, err = qq.HttpRequestPost(getGroupMembersUrl, head, bnk)
+	err = json.Unmarshal(bodyBytes, &groupMembers)
+	if err != nil {
+		return
+	}
+	if groupMembers.RetCode.RetCode == 0 {
+		qq.GroupMembers = groupMembers
+	}
+	return
+}
+
+/*
+
+keyword 搜索关键词
+city_id 城市，0、全国，10120：重庆
+sort    排序，0、默认，1、人数，2、活跃度
+
+*/
+func (qq *QQClient) GetGroupSearch(keyword string, cityId, page int) (searchGroup SearchGroup, err error) {
+	var bodyBytes []byte
+	sKeyCookie := qq.GetCookie("skey")
+	if sKeyCookie == nil {
+		err = errors.New("Cookie skey 不存在，请重新登录")
+		return
+	}
+	uinCookie := qq.GetCookie("uin")
+	if uinCookie == nil {
+		err = errors.New("Cookie uin 不存在，请重新登录")
+		return
+	}
+	sKey := sKeyCookie.Value
+	uin := uinCookie.Value
+	btnHash := BtnHash(sKey)
+	bnk := fmt.Sprintf(`k=&n=8&st=1&iso=1&src=1&v=4903&bkn=%s&isRecommend=false&city_id=%d&from=1&newSearch=true&keyword=%s&sort=0&wantnum=24&page=%d&ldw=%s`,
+		btnHash, cityId, keyword, page, btnHash)
+	head := map[string]string{
+		"Cookie":  fmt.Sprintf("uin=%s; skey=%s;", uin, sKey),
+		"Host":    "qun.qq.com",
+		"Origin":  "http://qun.qq.com",
+		"Referer": "http://find.qq.com/index.html?version=1&im_version=5545&width=910&height=610&search_target=0",
+	}
+	_, bodyBytes, err = qq.HttpRequestPost(getGroupSearchUrl, head, bnk)
+	err = json.Unmarshal(bodyBytes, &searchGroup)
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (qq *QQClient) ConvertFriendsListToMap(userInfo *FriendsListInfo) FriendsMap {
 	if userInfo != nil && len(userInfo.Friends) > 0 {
 		friendsMap := FriendsMap{}
@@ -930,7 +1157,7 @@ func (qq *QQClient) GetCookie(name string) *http.Cookie {
 func (qq *QQClient) GetCookieStr() string {
 	var str string
 	for _, cookie := range qq.Cookies {
-		if cookie.Value != "" {
+		if cookie.Value != "" && !strings.Contains(str, fmt.Sprintf(";%s=", cookie.Name)) {
 			str += cookie.Name + "=" + cookie.Value + ";"
 		}
 	}
@@ -951,7 +1178,6 @@ func (qq *QQClient) HttpRequestPost(url string, head map[string]string, body int
 		head = map[string]string{}
 	}
 	head["Content-Type"] = "application/x-www-form-urlencoded"
-	head["Cookie"] = qq.GetCookieStr()
 	return qq.HttpRequest("POST", url, head, body)
 }
 func (qq *QQClient) HttpRequestGet(url string, head map[string]string, parMap map[string]interface{}) (resp *http.Response, bodyBytes []byte, err error) {
@@ -959,14 +1185,12 @@ func (qq *QQClient) HttpRequestGet(url string, head map[string]string, parMap ma
 		head = map[string]string{}
 	}
 	head["Content-Type"] = "utf-8"
-	head["Cookie"] = qq.GetCookieStr()
 	return qq.HttpRequest("GET", qq.GetURLParams(url, parMap), head, nil)
 }
 
 func (qq *QQClient) Get(url string) (resp *http.Response, bodyBytes []byte, err error) {
 	head := map[string]string{}
 	head["Content-Type"] = "utf-8"
-	head["Cookie"] = qq.GetCookieStr()
 	return qq.HttpRequest("GET", url, head, nil)
 }
 
@@ -991,10 +1215,12 @@ func (qq *QQClient) HttpRequest(method string, url string, head map[string]strin
 	for k, v := range qq.HeadMap {
 		req.Header.Set(k, v)
 	}
-	if head != nil {
-		for k, v := range head {
-			req.Header.Set(k, v)
-		}
+	cookies := head["Cookie"]
+	if cookies == "" {
+		head["Cookie"] = qq.GetCookieStr()
+	}
+	for k, v := range head {
+		req.Header.Set(k, v)
 	}
 	resp, err = client.Do(req)
 	if err != nil {
@@ -1006,6 +1232,7 @@ func (qq *QQClient) HttpRequest(method string, url string, head map[string]strin
 	}
 	defer resp.Body.Close()
 	println(url, "【返回结果】", string(bodyBytes))
+	println(url, "【返回结果-Cookie】", convert.ToObjStr(resp.Cookies()))
 	return
 }
 

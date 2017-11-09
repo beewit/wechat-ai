@@ -9,14 +9,17 @@ import (
 
 	"github.com/beewit/wechat-ai/enum"
 	"github.com/lxn/win"
+	"strings"
 )
 
 const (
-	MOD_ALT      = 0x0001
-	MOD_CONTROL  = 0x0002
-	MOD_NOREPEAT = 0x400
-	MOD_SHIFT    = 0x0004
-	MOD_WIN      = 0x0008
+	MOD_ALT       = 0x0001
+	MOD_CONTROL   = 0x0002
+	MOD_NOREPEAT  = 0x400
+	MOD_SHIFT     = 0x0004
+	MOD_WIN       = 0x0008
+	cfUnicodetext = 13
+	gmemFixed     = 0x0000
 )
 
 const HOT_KEY_CTRL_SHFT_H = "HOT_KEY_CTRL_SHFT_H"
@@ -24,15 +27,29 @@ const HOT_KEY_CTRL_SHFT_H = "HOT_KEY_CTRL_SHFT_H"
 var (
 	// Library
 	libuser32 = win.MustLoadLibrary("user32.dll")
+	user32    = syscall.MustLoadDLL("user32")
 
 	// Functions
 	Mouse = win.MustGetProcAddress(libuser32, "mouse_event")
 	keyBD = win.MustGetProcAddress(libuser32, "keybd_event")
 
-	CloseClipboard   = win.MustGetProcAddress(libuser32, "CloseClipboard")
-	EmptyClipboard   = win.MustGetProcAddress(libuser32, "EmptyClipboard")
-	OpenClipboard    = win.MustGetProcAddress(libuser32, "OpenClipboard")
-	SetClipboardData = win.MustGetProcAddress(libuser32, "SetClipboardData")
+	//CloseClipboard   = win.MustGetProcAddress(libuser32, "CloseClipboard")
+	//EmptyClipboard   = win.MustGetProcAddress(libuser32, "EmptyClipboard")
+	//OpenClipboard    = win.MustGetProcAddress(libuser32, "OpenClipboard")
+	//SetClipboardData = win.MustGetProcAddress(libuser32, "SetClipboardData")
+
+	openClipboard    = user32.MustFindProc("OpenClipboard")
+	closeClipboard   = user32.MustFindProc("CloseClipboard")
+	emptyClipboard   = user32.MustFindProc("EmptyClipboard")
+	getClipboardData = user32.MustFindProc("GetClipboardData")
+	setClipboardData = user32.MustFindProc("SetClipboardData")
+
+	kernel32     = syscall.NewLazyDLL("kernel32")
+	globalAlloc  = kernel32.NewProc("GlobalAlloc")
+	globalFree   = kernel32.NewProc("GlobalFree")
+	globalLock   = kernel32.NewProc("GlobalLock")
+	globalUnlock = kernel32.NewProc("GlobalUnlock")
+	lstrcpy      = kernel32.NewProc("lstrcpyW")
 
 	GetSystemMetrics = win.MustGetProcAddress(libuser32, "GetSystemMetrics")
 	ClientToScreen   = win.MustGetProcAddress(libuser32, "ClientToScreen")
@@ -42,6 +59,12 @@ var (
 
 func KeybdEven(bVk, bScan int) (uintptr, uintptr, error) {
 	r, r2, err := syscall.Syscall(keyBD, 3, uintptr(bVk), 0, uintptr(bScan))
+	println(err.Error())
+	return r, r2, err
+}
+
+func KeybdEvenStr(bVk string, bScan int) (uintptr, uintptr, error) {
+	r, r2, err := syscall.Syscall(keyBD, 3, StrPtr(bVk), 0, uintptr(bScan))
 	println(err.Error())
 	return r, r2, err
 }
@@ -107,6 +130,27 @@ func KeydbCSW() {
 func KeydbKey(key int) {
 	KeybdEven(key, 0)
 	KeybdEven(key, win.KEYEVENTF_KEYUP)
+}
+
+func KeydbStr(keys string) {
+	for _, v := range keys {
+		if v >= 97 && v <= 122 {
+			//字母小写转大写字符串后操作
+			nv := int(strings.ToUpper(string(v))[0])
+			KeybdEven(nv, 0)
+			KeybdEven(nv, win.KEYEVENTF_KEYUP)
+		} else if v >= 65 && v <= 90 {
+			//字母大写字母按住shift
+			KeybdEven(win.VK_SHIFT, 0)
+			KeybdEven(int(v), 0)
+			KeybdEven(int(v), win.KEYEVENTF_KEYUP)
+			KeybdEven(win.VK_SHIFT, win.KEYEVENTF_KEYUP)
+		} else {
+			KeybdEven(int(v), 0)
+			KeybdEven(int(v), win.KEYEVENTF_KEYUP)
+		}
+		time.Sleep(time.Millisecond * 50)
+	}
 }
 
 //键盘BackSpace
@@ -235,4 +279,72 @@ func HotKeyUnregister(hWnd win.HWND, id string) bool {
 		println(errStr)
 	}
 	return r != 0
+}
+
+func SetClipboard(text string) error {
+	r, _, err := openClipboard.Call(0)
+	if r == 0 {
+		return err
+	}
+	defer closeClipboard.Call()
+
+	r, _, err = emptyClipboard.Call(0)
+	if r == 0 {
+		return err
+	}
+
+	data := syscall.StringToUTF16(text)
+
+	h, _, err := globalAlloc.Call(gmemFixed, uintptr(len(data)*int(unsafe.Sizeof(data[0]))))
+	if h == 0 {
+		return err
+	}
+
+	l, _, err := globalLock.Call(h)
+	if l == 0 {
+		return err
+	}
+
+	r, _, err = lstrcpy.Call(l, uintptr(unsafe.Pointer(&data[0])))
+	if r == 0 {
+		return err
+	}
+
+	r, _, err = globalUnlock.Call(h)
+	if r == 0 {
+		return err
+	}
+
+	r, _, err = setClipboardData.Call(cfUnicodetext, h)
+	if r == 0 {
+		return err
+	}
+	return nil
+}
+
+func GetClipboard() (string, error) {
+	r, _, err := openClipboard.Call(0)
+	if r == 0 {
+		return "", err
+	}
+	defer closeClipboard.Call()
+
+	h, _, err := getClipboardData.Call(cfUnicodetext)
+	if r == 0 {
+		return "", err
+	}
+
+	l, _, err := globalLock.Call(h)
+	if l == 0 {
+		return "", err
+	}
+
+	text := syscall.UTF16ToString((*[1 << 20]uint16)(unsafe.Pointer(l))[:])
+
+	r, _, err = globalUnlock.Call(h)
+	if r == 0 {
+		return "", err
+	}
+
+	return text, nil
 }

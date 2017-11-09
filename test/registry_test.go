@@ -51,6 +51,11 @@ func TestChar2(t *testing.T) {
 
 }
 
+func TestChar3(t *testing.T) {
+	ai.ThisWindow()
+
+}
+
 func TestFZ(t *testing.T) {
 	h := win.GetForegroundWindow()
 	println(h)
@@ -63,8 +68,8 @@ func TestStart(t *testing.T) {
 		fmt.Println("Error:", err)
 		return
 	}
-	ai.AddQQGroup(643413680,"旅游一下了")
-	ai.AddQQFriend(2818707257,"嗨喽")
+	ai.AddQQGroup(643413680, "旅游一下了")
+	ai.AddQQFriend(2818707257, "嗨喽")
 	//ai.KeydbStr("13696433488loveLoveMm*?{}[]")/.,<>()
 }
 

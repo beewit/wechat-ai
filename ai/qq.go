@@ -14,7 +14,7 @@ func QQLogin(qq int64, pwd string) (err error) {
 	if err != nil {
 		return
 	}
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 5)
 	var qqWin win.HWND
 	qqWin, _, _, err = FindWindow("TXGuiFoundation", "QQ", false, nil)
 	if err != nil {
@@ -148,7 +148,7 @@ func AddQQFriend(qq int64, remark string) (err error) {
 	MouseClick()
 	time.Sleep(time.Second * 3)
 	// - 添加好友
-	addFriendWin, _, _, err = FindWindow("TXGuiFoundation", "工蜂小智 - 添加好友", false, nil)
+	addFriendWin, _, _, err = ThisWindow() // FindWindow("TXGuiFoundation", "工蜂小智 - 添加好友", false, nil)
 	if err != nil {
 		return
 	}

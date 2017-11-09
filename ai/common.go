@@ -10,6 +10,7 @@ import (
 	"github.com/beewit/wechat-ai/enum"
 	"github.com/lxn/win"
 	"strings"
+	"github.com/beewit/beekit/utils/convert"
 )
 
 const (
@@ -193,26 +194,48 @@ func ForegroundWindow(winClass, winTitle string) (h win.HWND) {
 	return
 }
 
+func ThisWindow() (h win.HWND, size enum.Size, rect win.RECT, err error) {
+	h = win.GetForegroundWindow()
+	var baseRect win.RECT
+	flog := win.GetClientRect(h, &baseRect)
+	if !flog {
+		err = errors.New("获取当前窗体窗口大小失败")
+		return
+	}
+	size.Width = baseRect.Right
+	size.Height = baseRect.Bottom
+	println(fmt.Sprintf("当前窗体大小：width：%v，height：%v", size.Width, size.Height))
+	flog = win.GetWindowRect(h, &rect)
+	if !flog {
+		err = errors.New("查找当前窗体坐标失败")
+		return
+	}
+	println(fmt.Sprintf("查找当前坐标：TOP：%v，Left：%v，Bottom：%v，Right：%v", rect.Top, rect.Left, rect.Bottom, rect.Right))
+	return
+}
+
 func FindWindow(winClass, winTitle string, foreground bool, start func()) (h win.HWND, size enum.Size, rect win.RECT, err error) {
 	h = win.FindWindow(StrUint16(winClass), StrUint16(winTitle))
 	//激活窗体
 	//win.MustGetProcAddress(libuser32, "SwitchToThisWindow")
 	//win.ShowWindow(h, win.SW_SHOW)
 	//win.SetWindowPos(h, win.HWND_TOP, 0, 0, 0, 0, win.SWP_NOSIZE)
+	if convert.ToString(h) == "0" {
+		err = errors.New("查找【" + winTitle + "】窗体失败")
+		return
+	}
 	if start != nil {
 		start()
 	}
 	flog := win.SetForegroundWindow(h)
 	if !flog {
-		err = errors.New("查找【" + winTitle + "】窗体失败")
-		return
+		println("激活【" + winTitle + "】窗体失败")
 	}
 	if foreground {
 		//激活窗体
 		flog = win.SetForegroundWindow(h)
 		if !flog {
-			err = errors.New("激活【" + winTitle + "】窗体失败")
-			return
+			println("激活【" + winTitle + "】窗体失败")
 		}
 	}
 	var baseRect win.RECT

@@ -33,6 +33,7 @@ var (
 	getFriendInfoUrl      = "http://s.web2.qq.com/api/get_friend_info2"
 	sendMsgUrl            = "http://d1.web2.qq.com/channel/send_buddy_msg2"
 	sendQunMsgUrl         = "http://d1.web2.qq.com/channel/send_qun_msg2"
+	getGroupListUrl       = "http://qun.qq.com/cgi-bin/qun_mgr/get_group_list"
 	getFriendListUrl      = "http://qun.qq.com/cgi-bin/qun_mgr/get_friend_list"
 	getGroupMembersUrl    = "http://qinfo.clt.qq.com/cgi-bin/qun_info/get_group_members_new"
 	getGroupSearchUrl     = "http://qun.qq.com/cgi-bin/group_search/pc_group_search"
@@ -43,8 +44,10 @@ type QQClient struct {
 	UserInfo           map[int64]UserInfo
 	FriendsMap         FriendsMap
 	FriendsMap2        map[int64]FriendsMap2
-	GroupInfo          map[int64]GroupInfo
-	GroupMembers       GroupMembers
+	GroupInfoMap       map[int64]GroupInfo
+	Group2Map          map[int64]Group2
+	GroupMembersMap    map[int64]GroupMembers
+	MemberMap          map[int64]Member
 	QtQrShowUrl        string
 	LoginQrCode        string
 	PtQrToken          string
@@ -250,16 +253,17 @@ type PollValue struct {
 /*      含QQ号码的接口信息     */
 //【群组】含QQ号码
 type GroupList2 struct {
-	RetCode
-	Create Group2 `json:"create,omitempty"`
-	Join   Group2 `json:"join,omitempty"`
-	Manage Group2 `json:"manage,omitempty"`
+	Create []Group2 `json:"create,omitempty"`
+	Join   []Group2 `json:"join,omitempty"`
+	Manage []Group2 `json:"manage,omitempty"`
 }
 
 type Group2 struct {
 	QQ    int64  `json:"gc,omitempty"`
-	GName string `json:"gname,omitempty"`
+	GName string `json:"gn,omitempty"`
 	Owner int64  `json:"owner,omitempty"`
+	Logo  string
+	Type  int
 }
 
 //【群成员】含QQ号码
@@ -274,6 +278,15 @@ type GroupMembers struct {
 	Level     int               `json:"level,omitempty"`
 	LevelName map[string]string `json:"levelname,omitempty"`
 	Mems      []Mems            `json:"mems"`
+}
+
+type Member struct {
+	GroupName string
+	GroupQQ   int64
+	GroupUrl  string
+	Nick      string
+	QQ        int64
+	IsFriend  bool
 }
 
 type Mems struct {
@@ -331,8 +344,11 @@ type RetCode struct {
 
 func NewQQClient(qq *QQClient) *QQClient {
 	qq.UserInfo = make(map[int64]UserInfo)
-	qq.GroupInfo = make(map[int64]GroupInfo)
+	qq.GroupInfoMap = make(map[int64]GroupInfo)
 	qq.FriendsMap2 = make(map[int64]FriendsMap2)
+	qq.GroupMembersMap = make(map[int64]GroupMembers)
+	qq.MemberMap = make(map[int64]Member)
+	qq.Group2Map = make(map[int64]Group2)
 	var cookies []*http.Cookie
 	cookies = append(cookies, &http.Cookie{Name: "RK", Value: "OfeLBai4FB"})
 	cookies = append(cookies, &http.Cookie{Name: "pgv_pvi", Value: "911366144"})
@@ -558,8 +574,12 @@ func (qq *QQClient) CheckLogin(backFunc func(newQQ *QQClient, err error)) (newQQ
 				}
 				newQQ.Login.Desc = "初始化朋友"
 				newQQ.GetFriends()
+				newQQ.Login.Desc = "初始化朋友.."
+				newQQ.GetFriendList()
 				newQQ.Login.Desc = "初始化群组"
 				newQQ.GetGroup()
+				newQQ.Login.Desc = "初始化群组.."
+				newQQ.GetMyGroupList()
 				newQQ.Login.Desc = "登录成功"
 				newQQ.Login.Status = true
 				return
@@ -768,7 +788,6 @@ func (qq *QQClient) GetGroupInfo(groupCode int64) (qqRes QQResponse, err error) 
 }
 
 func (qq *QQClient) Poll2(poll2 func(qq *QQClient, result QQResponsePoll)) (res QQResponsePoll, err error) {
-	println("Poll2 -->  qq.Status && qq.Login.Status", qq.Status, qq.Login.Status)
 	var flog bool
 	for qq.Status && qq.Login.Status {
 		res, flog, err = qq.Poll()
@@ -798,7 +817,6 @@ func (qq *QQClient) Poll() (res QQResponsePoll, flog bool, err error) {
 		"Origin":  "http://d1.web2.qq.com",
 		"Referer": "http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2",
 	}
-	println(r)
 	_, bodyBytes, err = qq.HttpRequestPost(poll2Url, head, r)
 	if err != nil {
 		println(err.Error())
@@ -817,7 +835,6 @@ func (qq *QQClient) SendMsg(toUin int64, content string) (res QQResponse, err er
 	qq.MsgID++
 	var bodyBytes []byte
 	r := `r={"to":` + convert.ToString(toUin) + `,"content":"[\"` + content + `\",[\"font\",{\"name\":\"宋体\",\"size\":10,\"style\":[0,0,0],\"color\":\"000000\"}]]","face":96,"clientid":53999199,"msg_id":` + convert.ToString(qq.MsgID) + `,"psessionid":"` + qq.PSessionId + `"}`
-	println(r)
 	head := map[string]string{
 		"Host":    "d1.web2.qq.com",
 		"Origin":  "http://d1.web2.qq.com",
@@ -900,8 +917,7 @@ func (qq *QQClient) GetFriendList() (friendList FriendList2, err error) {
 	}
 	return
 }
-
-func (qq *QQClient) GetGroupMembers(gQQ int64) (groupMembers GroupMembers, err error) {
+func (qq *QQClient) GetMyGroupList() (group2 map[int64]Group2, err error) {
 	var bodyBytes []byte
 	sKeyCookie := qq.GetCookie("skey")
 	if sKeyCookie == nil {
@@ -921,7 +937,70 @@ func (qq *QQClient) GetGroupMembers(gQQ int64) (groupMembers GroupMembers, err e
 	sKey := sKeyCookie.Value
 	uin := uinCookie.Value
 	psKey := psKeyCookie.Value
-	bnk := fmt.Sprintf("gc=%d&st=0&end=5000&sort=0&bkn=%s", gQQ, BtnHash(sKey))
+	bnk := fmt.Sprintf("bkn=%s", BtnHash(sKey))
+	head := map[string]string{
+		"Cookie":  fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, sKey, uin, psKey),
+		"Host":    "qun.qq.com",
+		"Origin":  "http://qun.qq.com",
+		"Referer": "http://qun.qq.com/member.html",
+	}
+	_, bodyBytes, err = qq.HttpRequestPost(getGroupListUrl, head, bnk)
+	var groupList2 GroupList2
+	err = json.Unmarshal(bodyBytes, &groupList2)
+	if err != nil {
+		return
+	}
+	g := map[int64]Group2{}
+	if len(groupList2.Join) > 0 {
+		for _, v := range groupList2.Join {
+			v.Logo = fmt.Sprintf("http://p.qlogo.cn/gh/%v/%v_1/100", v.QQ, v.QQ)
+			v.Type = 1
+			g[v.QQ] = v
+			qq.Group2Map[v.QQ] = v
+		}
+	}
+
+	if len(groupList2.Create) > 0 {
+		for _, v := range groupList2.Join {
+			v.Logo = fmt.Sprintf("http://p.qlogo.cn/gh/%v/%v_1/100", v.QQ, v.QQ)
+			v.Type = 2
+			g[v.QQ] = v
+			qq.Group2Map[v.QQ] = v
+		}
+	}
+	if len(groupList2.Manage) > 0 {
+		for _, v := range groupList2.Join {
+			v.Logo = fmt.Sprintf("http://p.qlogo.cn/gh/%v/%v_1/100", v.QQ, v.QQ)
+			v.Type = 3
+			g[v.QQ] = v
+			qq.Group2Map[v.QQ] = v
+		}
+	}
+	group2 = g
+	return
+}
+
+func (qq *QQClient) GetGroupMembers(group2 Group2) (groupMembers GroupMembers, err error) {
+	var bodyBytes []byte
+	sKeyCookie := qq.GetCookie("skey")
+	if sKeyCookie == nil {
+		err = errors.New("Cookie skey 不存在，请重新登录")
+		return
+	}
+	uinCookie := qq.GetCookie("uin")
+	if uinCookie == nil {
+		err = errors.New("Cookie uin 不存在，请重新登录")
+		return
+	}
+	psKeyCookie := qq.GetCookie("p_skey")
+	if psKeyCookie == nil {
+		err = errors.New("Cookie p_skey 不存在，请重新登录")
+		return
+	}
+	sKey := sKeyCookie.Value
+	uin := uinCookie.Value
+	psKey := psKeyCookie.Value
+	bnk := fmt.Sprintf("gc=%d&st=0&end=5000&sort=0&bkn=%s", group2.QQ, BtnHash(sKey))
 	head := map[string]string{
 		"Cookie":  fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, sKey, uin, psKey),
 		"Host":    "qun.qq.com",
@@ -934,9 +1013,33 @@ func (qq *QQClient) GetGroupMembers(gQQ int64) (groupMembers GroupMembers, err e
 		return
 	}
 	if groupMembers.RetCode.RetCode == 0 {
-		qq.GroupMembers = groupMembers
+		qq.GroupMembersMap[group2.QQ] = groupMembers
+		qq.ConvertGroupMember(group2, groupMembers)
 	}
 	return
+}
+
+func (qq *QQClient) ConvertGroupMember(group2 Group2, groupMembers GroupMembers) {
+	if len(groupMembers.Mems) >= 0 {
+		for _, v := range groupMembers.Mems {
+			gm := Member{}
+			gm.QQ = v.QQ
+			gm.Nick = v.Nick
+			gm.GroupName = group2.GName
+			gm.GroupQQ = group2.QQ
+			gm.IsFriend = Exist(groupMembers.Friends, v.QQ)
+			qq.MemberMap[v.QQ] = gm
+		}
+	}
+}
+
+func Exist(arr []int64, id int64) bool {
+	for _, v := range arr {
+		if v == id {
+			return true
+		}
+	}
+	return false
 }
 
 /*
@@ -1060,7 +1163,7 @@ func (qq *QQClient) UpdateGroupToMap(group *Group) {
 		g := GroupInfo{}
 		groupMap := map[int64]GroupInfo{}
 		for _, v := range group.GNameList {
-			tg := qq.GroupInfo[v.Code]
+			tg := qq.GroupInfoMap[v.Code]
 			if tg.Code <= 0 {
 				g = GroupInfo{}
 			} else {
@@ -1071,7 +1174,7 @@ func (qq *QQClient) UpdateGroupToMap(group *Group) {
 			g.GId = v.GId
 			g.Name = v.Name
 			groupMap[v.GId] = g
-			qq.GroupInfo[v.GId] = g
+			qq.GroupInfoMap[v.GId] = g
 		}
 	}
 }
@@ -1093,7 +1196,7 @@ func (qq *QQClient) UpdateGroupInfo(ge *GroupInfoExt2) {
 		g.Owner = ge.GInfo.Owner
 		g.UserInfo = qq.CovertUserInfoArrayToMap(ge.Info)
 		g.MarkNames = ge.GInfo.MarkNames
-		qq.GroupInfo[ge.GInfo.GId] = g
+		qq.GroupInfoMap[ge.GInfo.GId] = g
 		if g.UserInfo != nil {
 			for _, v := range g.UserInfo {
 				qq.UpdateUserInfo(v)
@@ -1114,7 +1217,6 @@ func (qq *QQClient) CovertUserInfoArrayToMap(info []UserInfo) map[int64]UserInfo
 }
 
 func (qq *QQClient) UpdateUserInfo(info UserInfo) {
-	println("UpdateUserInfo：", convert.ToObjStr(info))
 	qq.UserInfo[info.Uin] = info
 }
 

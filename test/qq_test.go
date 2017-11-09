@@ -24,13 +24,13 @@ func TestStartQQ(t *testing.T) {
 		println(err.Error())
 		return
 	}
-	if qq != nil && qq.GroupInfo != nil {
-		for _, v := range qq.GroupInfo {
-			reg, err := qq.GetGroupInfo(v.Code)
+	if qq != nil && qq.GroupInfoMap != nil {
+		for _, v := range qq.GroupInfoMap {
+			_, err := qq.GetGroupInfo(v.Code)
 			if err != nil {
 				println(fmt.Sprintf("【%s】加载群信息失败，ERROR：%s", v.Name, err.Error()))
 			} else {
-				println(fmt.Sprintf("【%s】加载群信息结果：%s", v.Name, convert.ToObjStr(reg)))
+				println(fmt.Sprintf("【%s】加载群信息完成", v.Name))
 			}
 			time.Sleep(time.Second * 3)
 		}
@@ -43,7 +43,7 @@ func TestStartQQ(t *testing.T) {
 			if len(result.Result) > 0 && len(result.Result[0].Value.Content) > 0 {
 				var message string
 				if result.Result[0].PollType == "group_message" {
-					group := qq.GroupInfo[result.Result[0].Value.GroupCode]
+					group := qq.GroupInfoMap[result.Result[0].Value.GroupCode]
 					if group.GId > 0 {
 						message = " 【群消息 - " + group.Name + "】 "
 					}
@@ -173,7 +173,7 @@ func TestLoginQQ(t *testing.T) {
 		if len(result.Result) > 0 && len(result.Result[0].Value.Content) > 0 {
 			var message string
 			if result.Result[0].PollType == "group_message" {
-				message = " 【群消息 - " + qq.GroupInfo[result.Result[0].Value.GroupCode].Name + "】 "
+				message = " 【群消息 - " + qq.GroupInfoMap[result.Result[0].Value.GroupCode].Name + "】 "
 			}
 			message += "   -   发送人《" + qq.FriendsMap.Info[result.Result[0].Value.SendUin].Nick + "》"
 			for i := 0; i < len(result.Result[0].Value.Content); i++ {
@@ -235,6 +235,6 @@ func TestArr(t *testing.T) {
 	println(convert.ToObjStr(arr))
 	arr = nil
 	arr = append(arr, 30)
-	println("test",convert.ToObjStr(arr))
+	println("test", convert.ToObjStr(arr))
 
 }

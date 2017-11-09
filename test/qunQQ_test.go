@@ -129,9 +129,9 @@ func TestGroupSearchQun(t *testing.T) {
 }
 
 func TestGetGroupList(t *testing.T) {
-	skey := "@5iN8KnOXM"
+	skey := "@Bl3yTiwVz"
 	uin := "o2458208514"
-	pskey := "C6Q55AQ43l5v1GwazSvDP1opz5rQWBBKF63x5Mqiw3I_"
+	pskey := "sIcZS8p*5SOMK8iEu20jFGc*frCzuWB7p-2mslDlENk_"
 	client := &http.Client{Timeout: time.Second * time.Duration(30)}
 	req, _ := http.NewRequest("POST", "http://qun.qq.com/cgi-bin/qun_mgr/get_group_list", strings.NewReader(fmt.Sprintf("bkn=%s", btnHash(skey))))
 	req.Header.Set("Cookie", fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, skey, uin, pskey))
@@ -146,6 +146,9 @@ func TestGetGroupList(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	println("【查询群】", string(bodyBytes))
+	var gl smartQQ.GroupList2
+	json.Unmarshal(bodyBytes, &gl)
+	println(convert.ToObjStr(gl))
 }
 
 func TestGetFriendList(t *testing.T) {
@@ -176,9 +179,9 @@ func TestGetFriendList(t *testing.T) {
 }
 
 func TestSearchGroupMembers(t *testing.T) {
-	skey := "@5iN8KnOXM"
+	skey := "@Bl3yTiwVz"
 	uin := "o2458208514"
-	pskey := "C6Q55AQ43l5v1GwazSvDP1opz5rQWBBKF63x5Mqiw3I_"
+	pskey := "sIcZS8p*5SOMK8iEu20jFGc*frCzuWB7p-2mslDlENk_"
 	client := &http.Client{Timeout: time.Second * time.Duration(30)}
 	req, _ := http.NewRequest("POST", "http://qinfo.clt.qq.com/cgi-bin/qun_info/get_group_members_new", strings.NewReader(fmt.Sprintf("gc=11862108&st=0&end=5000&sort=0&bkn=%s", btnHash(skey))))
 	req.Header.Set("Cookie", fmt.Sprintf("uin=%s; skey=%s; p_uin=%s; p_skey=%s", uin, skey, uin, pskey))

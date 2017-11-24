@@ -10,6 +10,7 @@ import (
 	"github.com/beewit/beekit/utils/convert"
 	"fmt"
 	"encoding/json"
+	"github.com/beewit/beekit/utils"
 )
 
 func TestAddQQ(t *testing.T) {
@@ -210,4 +211,11 @@ func btnHash(e string) string {
 
 func TestBtnHash(t *testing.T) {
 	println(btnHash("@7KapkyMz0"))
+}
+
+func TestMac(t *testing.T) {
+	//b0:25:aa:17:91:a0
+	//eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.ri553VU8FhX7M9DX2cbdFKvsXofDxHWcE3kXhPg7vOAd7f91fc14aee950d71abbf3d360f0633
+	//eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.r1QhVVk20WkJPjagz_ENT5gee2XZEvrEQRpChcKx3i4d7f91fc14aee950d71abbf3d360f0633
+	println(utils.GetMac())
 }

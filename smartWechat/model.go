@@ -193,6 +193,16 @@ type WechatClient struct {
 	Cookies    []*http.Cookie /* 微信相关API需要用到的Cookies */
 	InitInfo   *InitInfo
 	ContactMap map[string]User
+
+	LoginStatus bool
+
+	SyncCheckStatus bool //时间开启了登录心跳检测
+	UUID            string
+}
+
+type WechatLoginStatus struct {
+	SendStatusMsg string
+	SendStatus    int
 }
 
 /**

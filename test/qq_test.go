@@ -192,7 +192,7 @@ func TestLoginQQ(t *testing.T) {
 }
 
 func TestHash(t *testing.T) {
-	str := smartQQ.Hash(convert.MustInt64("2458208514"), "")
+	str := smartQQ.Hash(convert.MustInt64("2458208514"), "622b439f62240570919a111b5dc1a4f7918f4e9eb8b9aa17ab44557c4f9cc21a")
 	println(str)
 
 }

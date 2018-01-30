@@ -20,6 +20,12 @@ func TestTimUninx(t *testing.T) {
 	println(fmt.Sprintf("%d", time.Now().UnixNano()/1000000))
 }
 
+func TestSmg(t *testing.T) {
+	content := "123456"
+	r := `r={"to":` + convert.ToString(123456789) + `,"content":"[\"` + content + `\",[\"font\",{\"name\":\"宋体\",\"size\":10,\"style\":[0,0,0],\"color\":\"000000\"}]]","face":96,"clientid":53999199,"msg_id":1578494894,"psessionid":"891561561561"}`
+	println(r)
+}
+
 func TestJson(t *testing.T) {
 	b, _ := ioutil.ReadFile("userinfo.json")
 	var initInfo *smartWechat.InitInfo
